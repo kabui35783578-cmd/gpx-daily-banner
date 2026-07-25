@@ -1,0 +1,9 @@
+{
+  "id": "gpx-daily-banner",
+  "name": "GPX Daily Banner",
+  "version": "0.3.0",
+  "minAppVersion": "1.8.7",
+  "description": "Mobile-first daily note map banners from 一生足迹 tracks, with GPX import support.",
+  "author": "Etui000",
+  "isDesktopOnly": false
+}

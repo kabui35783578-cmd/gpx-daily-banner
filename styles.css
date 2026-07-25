@@ -1,0 +1,349 @@
+:root {
+  --gpx-banner-height: 220px;
+  --gpx-banner-mobile-height: 180px;
+  --gpx-banner-radius: 12px;
+  --gpx-banner-aspect-ratio: 8 / 3;
+}
+
+.gpx-daily-banner-settings-intro {
+  color: var(--text-muted);
+  margin: -4px 0 18px;
+  max-width: 760px;
+}
+
+.gpx-daily-banner-setup {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  margin: 12px 0 20px;
+  padding: 16px;
+}
+
+.gpx-daily-banner-setup h2,
+.gpx-daily-banner-settings-section h2 {
+  margin: 0 0 6px;
+}
+
+.gpx-daily-banner-setup p,
+.gpx-daily-banner-settings-help {
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.gpx-daily-banner-setup ol {
+  margin: 10px 0 14px;
+  padding-left: 22px;
+}
+
+.gpx-daily-banner-setup-status {
+  align-items: flex-start;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 12px 0;
+  padding: 10px 12px;
+}
+
+.gpx-daily-banner-setup-status span {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  overflow-wrap: anywhere;
+}
+
+.gpx-daily-banner-setup-status.is-ready {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.gpx-daily-banner-setup-status.is-missing {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.gpx-daily-banner-setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gpx-daily-banner-settings-section {
+  margin: 20px 0;
+}
+
+.gpx-daily-banner-settings-section > .gpx-daily-banner-settings-help {
+  margin-top: 0;
+}
+
+.gpx-daily-banner-settings-advanced {
+  border-top: 1px solid var(--background-modifier-border);
+  margin-top: 22px;
+  padding-top: 14px;
+}
+
+.gpx-daily-banner-settings-advanced > summary {
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: var(--font-ui-medium);
+  font-weight: 650;
+  padding: 4px 0;
+}
+
+.gpx-daily-banner-settings-advanced-content {
+  padding-top: 8px;
+}
+
+.gpx-daily-banner-settings-subsection {
+  margin: 20px 0 26px;
+}
+
+.gpx-daily-banner-settings-subsection h3 {
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-medium);
+  margin: 0 0 4px;
+  padding-bottom: 6px;
+}
+
+.gpx-daily-banner-legacy-warning {
+  align-items: flex-start;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0 16px;
+  padding: 10px 12px;
+}
+
+.gpx-daily-banner-legacy-warning span {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+img[alt="gpx-daily-banner"],
+img[alt*="gpx-daily-banner"],
+.image-embed[alt="gpx-daily-banner"] img,
+.image-embed[alt*="gpx-daily-banner"] img,
+.internal-embed[alt*="gpx-daily-banner"] img,
+.internal-embed[alt*="-gpx-banner"] img,
+.internal-embed[src*="-gpx-banner"] img,
+.markdown-source-view.mod-cm6 img[alt*="gpx-daily-banner"],
+.markdown-source-view.mod-cm6 img[alt*="-gpx-banner"],
+.markdown-source-view.mod-cm6 .cm-embed-block img[alt*="gpx-daily-banner"],
+.markdown-source-view.mod-cm6 .cm-embed-block img[alt*="-gpx-banner"] {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  aspect-ratio: var(--gpx-banner-aspect-ratio, 8 / 3);
+  object-fit: contain;
+  border-radius: var(--gpx-banner-radius, 12px);
+  display: block;
+  background: var(--background-secondary);
+}
+
+.markdown-preview-view .image-embed[alt*="gpx-daily-banner"],
+.markdown-preview-view .internal-embed[alt*="gpx-daily-banner"],
+.markdown-source-view.mod-cm6 .image-embed[alt*="gpx-daily-banner"],
+.markdown-source-view.mod-cm6 .internal-embed[alt*="gpx-daily-banner"],
+.markdown-source-view.mod-cm6 .internal-embed[alt*="-gpx-banner"],
+.markdown-source-view.mod-cm6 .internal-embed[src*="-gpx-banner"],
+.markdown-source-view.mod-cm6 .cm-embed-block:has(img[alt*="gpx-daily-banner"]),
+.markdown-source-view.mod-cm6 .cm-embed-block:has(img[alt*="-gpx-banner"]) {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.gpx-daily-banner-marker-line {
+  display: none !important;
+}
+
+.markdown-source-view.mod-cm6.is-live-preview .cm-line:has(+ .internal-embed[alt*="gpx-daily-banner"]),
+.markdown-source-view.mod-cm6.is-live-preview .internal-embed[alt*="gpx-daily-banner"] + .cm-line {
+  display: none !important;
+}
+
+@media (max-width: 600px) {
+  img[alt="gpx-daily-banner"],
+  img[alt*="gpx-daily-banner"],
+  .image-embed[alt="gpx-daily-banner"] img,
+  .image-embed[alt*="gpx-daily-banner"] img,
+  .internal-embed[alt*="gpx-daily-banner"] img,
+  .internal-embed[alt*="-gpx-banner"] img,
+  .internal-embed[src*="-gpx-banner"] img,
+  .markdown-source-view.mod-cm6 img[alt*="gpx-daily-banner"],
+  .markdown-source-view.mod-cm6 img[alt*="-gpx-banner"] {
+    height: auto !important;
+  }
+}
+
+.gpx-daily-banner-confirm {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.gpx-preview-view {
+  --gpx-preview-border: color-mix(in srgb, var(--background-modifier-border), transparent 10%);
+  --gpx-preview-muted: var(--text-muted);
+  padding: 18px;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.gpx-preview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.gpx-preview-kicker {
+  color: var(--text-accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gpx-preview-title {
+  margin: 2px 0 4px;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.gpx-preview-path {
+  color: var(--gpx-preview-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.gpx-preview-status {
+  border: 1px solid var(--gpx-preview-border);
+  border-radius: 999px;
+  color: var(--text-normal);
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  padding: 7px 10px;
+}
+
+.gpx-preview-status.is-processed {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(34, 197, 94, 0.38);
+}
+
+.gpx-preview-status.is-pending-note {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.38);
+}
+
+.gpx-preview-status.is-failed {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.38);
+}
+
+.gpx-preview-banner-image {
+  width: 100%;
+  aspect-ratio: 20 / 7;
+  border: 1px solid var(--gpx-preview-border);
+  border-radius: 10px;
+  display: block;
+  margin-bottom: 14px;
+}
+
+.gpx-preview-banner-image {
+  height: auto;
+  object-fit: contain;
+  background: var(--background-secondary);
+}
+
+.gpx-preview-missing-banner {
+  align-items: center;
+  aspect-ratio: 20 / 7;
+  background: var(--background-secondary);
+  border: 1px dashed var(--gpx-preview-border);
+  border-radius: 10px;
+  color: var(--gpx-preview-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 14px;
+  padding: 18px;
+  text-align: center;
+}
+
+.gpx-preview-missing-banner strong {
+  color: var(--text-normal);
+  font-size: 15px;
+}
+
+.gpx-preview-missing-banner span {
+  font-size: 13px;
+  max-width: 420px;
+}
+
+.gpx-preview-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gpx-preview-metric {
+  border: 1px solid var(--gpx-preview-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.gpx-preview-metric-label {
+  color: var(--gpx-preview-muted);
+  display: block;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.gpx-preview-metric-value {
+  display: block;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.gpx-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.gpx-preview-empty,
+.gpx-preview-error {
+  border: 1px solid var(--gpx-preview-border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+@media (max-width: 600px) {
+  .gpx-preview-view {
+    padding: 12px;
+  }
+
+  .gpx-preview-header {
+    display: block;
+  }
+
+  .gpx-preview-status {
+    display: inline-block;
+    margin-top: 10px;
+  }
+
+  .gpx-preview-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+}

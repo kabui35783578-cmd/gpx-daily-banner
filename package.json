@@ -1,0 +1,38 @@
+{
+  "name": "gpx-daily-banner",
+  "version": "0.3.0",
+  "description": "Mobile-first Obsidian daily note map banners from 一生足迹 tracks, with GPX import support.",
+  "main": "main.js",
+  "scripts": {
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "test": "node scripts/test-daily-data-parser.mjs",
+    "dev": "node esbuild.config.mjs",
+    "optimize": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/optimize-for-sync.ps1",
+    "release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-release.ps1"
+  },
+  "files": [
+    "main.js",
+    "manifest.json",
+    "styles.css",
+    "versions.json",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "keywords": [
+    "obsidian",
+    "gpx",
+    "daily-notes",
+    "banner"
+  ],
+  "author": "Etui000",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.25.0",
+    "obsidian": "^1.8.7",
+    "tslib": "^2.6.2",
+    "typescript": "^5.4.5"
+  }
+}
