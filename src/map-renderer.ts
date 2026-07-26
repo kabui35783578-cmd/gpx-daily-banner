@@ -1,5 +1,6 @@
-import { centerOfBounds, collectBounds, lonLatToWorldPixel, simplifyTracks, tileUrl } from "./coordinate";
-import { GpxDailyBannerSettings, RenderInput } from "./types";
+import { centerOfBounds, collectBounds, convertTracksForMap, lonLatToWorldPixel, simplifyTracks, tileUrl } from "./coordinate";
+import { getMapTilePreset, MapTilePreset } from "./map-presets";
+import { GpxDailyBannerSettings, MapTilePresetId, RenderInput } from "./types";
 import { loadTileImage, mapWithConcurrency } from "./tile-loader";
 import { canvasToArrayBuffer, formatDistance, formatDuration } from "./utils";
 
@@ -24,18 +25,42 @@ interface LoadedTile extends TileTask {
 }
 
 export async function renderMapBanner(input: RenderInput, settings: GpxDailyBannerSettings): Promise<ArrayBuffer> {
-  const tracks = simplifyTracks(input.tracks);
+  let lastError: unknown;
+  for (const source of mapTileSources(settings)) {
+    try {
+      return await renderMapBannerWithSource(input, settings, source);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("地图源全部加载失败。");
+}
+
+async function renderMapBannerWithSource(input: RenderInput, settings: GpxDailyBannerSettings, source: MapTilePreset): Promise<ArrayBuffer> {
+  if (source.requiresToken && !settings.mapTileToken.trim()) {
+    throw new Error("天地图需要 TK，请在高级设置中填写；也可以先切换到高德地图。");
+  }
+
+  const tracks = simplifyTracks(convertTracksForMap(input.tracks, settings.trackCoordinateSystem, source.coordinateSystem));
   const canvas = document.createElement("canvas");
   canvas.width = settings.imageWidth;
   canvas.height = settings.imageHeight;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("当前环境不支持 Canvas。");
 
-  const viewport = chooseViewport(tracks, settings);
+  const viewport = chooseViewport(tracks, { ...settings, maxZoom: Math.min(settings.maxZoom, source.maxZoom) });
   const tileTasks = [];
   for (let x = viewport.minTileX; x <= viewport.maxTileX; x++) {
     for (let y = viewport.minTileY; y <= viewport.maxTileY; y++) {
-      tileTasks.push({ x, y, url: tileUrl(settings.tileUrlTemplate, viewport.zoom, x, y) });
+      tileTasks.push({
+        x,
+        y,
+        url: tileUrl(source.tileUrlTemplate, viewport.zoom, x, y, {
+          subdomains: source.subdomains,
+          tileYMode: source.tileYMode,
+          token: settings.mapTileToken
+        })
+      });
     }
   }
   if (tileTasks.length > settings.maxTileCount) {
@@ -81,9 +106,36 @@ export async function renderMapBanner(input: RenderInput, settings: GpxDailyBann
   drawMarker(ctx, projectPoint(first, viewport), "#22c55e", settings.showStartMarker);
   drawMarker(ctx, projectPoint(last, viewport), "#ef4444", settings.showEndMarker);
   drawInfo(ctx, input, settings);
-  drawAttribution(ctx, settings.tileAttribution, canvas.width, canvas.height);
+  drawAttribution(ctx, source.tileAttribution, canvas.width, canvas.height);
 
   return canvasToArrayBuffer(canvas);
+}
+
+function mapTileSources(settings: GpxDailyBannerSettings): MapTilePreset[] {
+  const selected = configuredMapTileSource(settings);
+  if (selected.id === "custom") return [selected];
+
+  const fallbackIds: MapTilePresetId[] = ["amap-standard", "tencent-satellite", "carto-light"];
+  const fallbackSources = fallbackIds
+    .filter((id) => id !== selected.id)
+    .map((id) => getMapTilePreset(id))
+    .filter((preset): preset is MapTilePreset => Boolean(preset));
+  return [selected, ...fallbackSources];
+}
+
+function configuredMapTileSource(settings: GpxDailyBannerSettings): MapTilePreset {
+  const preset = getMapTilePreset(settings.mapTilePreset);
+  if (preset) return preset;
+  return {
+    id: "custom",
+    name: "自定义",
+    tileUrlTemplate: settings.tileUrlTemplate,
+    tileAttribution: settings.tileAttribution,
+    maxZoom: settings.maxZoom,
+    coordinateSystem: "wgs84",
+    subdomains: ["a", "b", "c", "d"],
+    tileYMode: "xyz"
+  };
 }
 
 async function loadVisibleTiles(tileTasks: TileTask[]): Promise<LoadedTile[]> {
@@ -97,8 +149,9 @@ async function loadVisibleTiles(tileTasks: TileTask[]): Promise<LoadedTile[]> {
     })
   ).filter((tile): tile is LoadedTile => Boolean(tile));
 
-  if (!loadedTiles.length) {
-    throw new Error("地图瓦片全部加载失败，已切换离线图。");
+  const minimumLoadedTiles = Math.max(1, Math.ceil(tileTasks.length * 0.75));
+  if (loadedTiles.length < minimumLoadedTiles) {
+    throw new Error("地图瓦片加载不完整，正在尝试备用地图源。");
   }
 
   return loadedTiles;

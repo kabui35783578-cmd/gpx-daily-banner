@@ -1,4 +1,4 @@
-import { ParsedTrack, TrackPoint, TrackSegment } from "./types";
+import { MapCoordinateSystem, ParsedTrack, TileYMode, TrackPoint, TrackSegment } from "./types";
 
 export interface Bounds {
   minLat: number;
@@ -38,15 +38,92 @@ export function lonLatToWorldPixel(lat: number, lon: number, zoom: number): Pixe
   };
 }
 
-export function tileUrl(template: string, z: number, x: number, y: number): string {
-  const subdomains = ["a", "b", "c", "d"];
-  const subdomain = subdomains[Math.abs(x + y) % subdomains.length];
+export interface TileUrlOptions {
+  subdomains?: readonly string[];
+  tileYMode?: TileYMode;
+  token?: string;
+}
+
+export function tileUrl(template: string, z: number, x: number, y: number, options: TileUrlOptions = {}): string {
+  const subdomains = options.subdomains?.length ? options.subdomains : ["a", "b", "c", "d"];
+  const tileY = options.tileYMode === "tencent" ? 2 ** z - 1 - y : y;
+  const subdomain = subdomains[Math.abs(x + tileY) % subdomains.length];
+  const x16 = Math.floor(x / 16);
+  const y16 = Math.floor(tileY / 16);
   return template
     .replace("{z}", String(z))
     .replace("{x}", String(x))
     .replace("{y}", String(y))
     .replace("{s}", subdomain)
-    .replace("{r}", "");
+    .replace("{r}", "")
+    .replace("{reverseY}", String(tileY))
+    .replace("{sx}", String(x16))
+    .replace("{sy}", String(y16))
+    .replace("{token}", options.token ?? "");
+}
+
+const GCJ_PI = Math.PI;
+const GCJ_A = 6378245.0;
+const GCJ_EE = 0.00669342162296594323;
+
+export function convertTracksForMap(tracks: ParsedTrack[], from: MapCoordinateSystem, to: MapCoordinateSystem): ParsedTrack[] {
+  if (from === to) return tracks;
+  return tracks.map((track) => ({
+    ...track,
+    segments: track.segments.map((segment) => ({
+      ...segment,
+      points: segment.points.map((point) => convertPointForMap(point, from, to))
+    }))
+  }));
+}
+
+export function convertPointForMap(point: TrackPoint, from: MapCoordinateSystem, to: MapCoordinateSystem): TrackPoint {
+  if (from === to) return { ...point };
+  if (from === "wgs84" && to === "gcj02") return wgs84ToGcj02(point);
+  return gcj02ToWgs84(point);
+}
+
+export function wgs84ToGcj02(point: TrackPoint): TrackPoint {
+  if (isOutsideChina(point.lat, point.lon)) return { ...point };
+  const dLat = transformLatitude(point.lon - 105, point.lat - 35);
+  const dLon = transformLongitude(point.lon - 105, point.lat - 35);
+  const radLat = (point.lat / 180) * GCJ_PI;
+  let magic = Math.sin(radLat);
+  magic = 1 - GCJ_EE * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  const lat = point.lat + (dLat * 180) / ((GCJ_A * (1 - GCJ_EE)) / (magic * sqrtMagic) * GCJ_PI);
+  const lon = point.lon + (dLon * 180) / ((GCJ_A / sqrtMagic) * Math.cos(radLat) * GCJ_PI);
+  return { ...point, lat, lon };
+}
+
+export function gcj02ToWgs84(point: TrackPoint): TrackPoint {
+  if (isOutsideChina(point.lat, point.lon)) return { ...point };
+  const converted = wgs84ToGcj02(point);
+  return {
+    ...point,
+    lat: point.lat * 2 - converted.lat,
+    lon: point.lon * 2 - converted.lon
+  };
+}
+
+function isOutsideChina(lat: number, lon: number): boolean {
+  return lon < 72.004 || lon > 137.8347 || lat < 0.8293 || lat > 55.8271;
+}
+
+function transformLatitude(x: number, y: number): number {
+  let result = -100 + 2 * x + 3 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+  result += (20 * Math.sin(6 * x * GCJ_PI) + 20 * Math.sin(2 * x * GCJ_PI)) * 2 / 3;
+  result += (20 * Math.sin(y * GCJ_PI) + 40 * Math.sin((y / 3) * GCJ_PI)) * 2 / 3;
+  result += (160 * Math.sin((y / 12) * GCJ_PI) + 320 * Math.sin((y * GCJ_PI) / 30)) * 2 / 3;
+  return result;
+}
+
+function transformLongitude(x: number, y: number): number {
+  let result = 300 + x + 2 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+  result += (20 * Math.sin(6 * x * GCJ_PI) + 20 * Math.sin(2 * x * GCJ_PI)) * 2 / 3;
+  result += (20 * Math.sin(x * GCJ_PI) + 40 * Math.sin((x / 3) * GCJ_PI)) * 2 / 3;
+  result += (150 * Math.sin((x / 12) * GCJ_PI) + 300 * Math.sin((x / 30) * GCJ_PI)) * 2 / 3;
+  return result;
 }
 
 function perpendicularDistance(point: TrackPoint, start: TrackPoint, end: TrackPoint): number {

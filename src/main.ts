@@ -57,6 +57,14 @@ export default class GpxDailyBannerPlugin extends Plugin {
   async loadSettings(): Promise<void> {
     const loaded = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
+    const legacyDefaultTileUrl = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png";
+    const legacyDefaultAttribution = "© OpenStreetMap contributors © CARTO";
+    if (loaded?.mapTilePreset === "carto-light" && loaded?.tileUrlTemplate === legacyDefaultTileUrl && loaded?.tileAttribution === legacyDefaultAttribution) {
+      this.settings.mapTilePreset = DEFAULT_SETTINGS.mapTilePreset;
+      this.settings.tileUrlTemplate = DEFAULT_SETTINGS.tileUrlTemplate;
+      this.settings.tileAttribution = DEFAULT_SETTINGS.tileAttribution;
+      this.settings.maxZoom = DEFAULT_SETTINGS.maxZoom;
+    }
     this.settings.useCoreDailyNotesSettings = shouldFollowCoreDailyNotesSettings(loaded, {
       folder: DEFAULT_SETTINGS.dailyNoteFolder,
       format: DEFAULT_SETTINGS.dailyNoteDateFormat,
@@ -78,6 +86,12 @@ export default class GpxDailyBannerPlugin extends Plugin {
     }
     if (typeof this.settings.onlineMapEnabled !== "boolean") {
       this.settings.onlineMapEnabled = DEFAULT_SETTINGS.onlineMapEnabled;
+    }
+    if (typeof this.settings.mapTileToken !== "string") {
+      this.settings.mapTileToken = DEFAULT_SETTINGS.mapTileToken;
+    }
+    if (this.settings.trackCoordinateSystem !== "wgs84" && this.settings.trackCoordinateSystem !== "gcj02") {
+      this.settings.trackCoordinateSystem = DEFAULT_SETTINGS.trackCoordinateSystem;
     }
     if (!loaded?.mapTilePreset) {
       this.settings.mapTilePreset = inferMapTilePresetId(this.settings.tileUrlTemplate);

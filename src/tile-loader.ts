@@ -19,7 +19,7 @@ async function loadTileImageOnce(url: string): Promise<HTMLImageElement> {
       method: "GET",
       headers: {
         Accept: "image/png,image/*;q=0.9,*/*;q=0.5",
-        "User-Agent": "GPX Daily Banner Obsidian Plugin/0.1"
+        "User-Agent": "GPX Daily Banner Obsidian Plugin/0.3"
       }
     }),
     8000,
@@ -59,22 +59,11 @@ async function loadTileImageOnce(url: string): Promise<HTMLImageElement> {
 }
 
 function tileUrlCandidates(url: string): string[] {
-  const urls = [url, cacheBustedUrl(url)];
+  const urls = [url];
   for (const alternateUrl of alternateTileHostUrls(url)) {
-    urls.push(alternateUrl, cacheBustedUrl(alternateUrl));
+    urls.push(alternateUrl);
   }
   return Array.from(new Set(urls));
-}
-
-function cacheBustedUrl(url: string): string {
-  const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  try {
-    const parsed = new URL(url);
-    parsed.searchParams.set("gpxdb", token);
-    return parsed.toString();
-  } catch {
-    return `${url}${url.includes("?") ? "&" : "?"}gpxdb=${token}`;
-  }
 }
 
 function alternateTileHostUrls(url: string): string[] {
@@ -92,6 +81,27 @@ function alternateTileHostUrls(url: string): string[] {
 }
 
 function alternateTileHosts(hostname: string): string[] {
+  const amapMatch = hostname.match(/^(webrd|wprd|webst)0([1-4])\.is\.autonavi\.com$/);
+  if (amapMatch) {
+    return ["1", "2", "3", "4"]
+      .filter((subdomain) => subdomain !== amapMatch[2])
+      .map((subdomain) => `${amapMatch[1]}0${subdomain}.is.autonavi.com`);
+  }
+
+  const tencentMatch = hostname.match(/^(p|rt)([0-2])\.map\.gtimg\.com$/);
+  if (tencentMatch) {
+    return ["0", "1", "2"]
+      .filter((subdomain) => subdomain !== tencentMatch[2])
+      .map((subdomain) => `${tencentMatch[1]}${subdomain}.map.gtimg.com`);
+  }
+
+  const tiandituMatch = hostname.match(/^t([0-7])\.tianditu\.gov\.cn$/);
+  if (tiandituMatch) {
+    return ["0", "1", "2", "3", "4", "5", "6", "7"]
+      .filter((subdomain) => subdomain !== tiandituMatch[1])
+      .map((subdomain) => `t${subdomain}.tianditu.gov.cn`);
+  }
+
   const cartoMatch = hostname.match(/^([a-d])\.basemaps\.cartocdn\.com$/);
   if (cartoMatch) {
     return ["a", "b", "c", "d"]

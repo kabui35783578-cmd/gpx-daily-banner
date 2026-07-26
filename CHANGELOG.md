@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1
+
+- Added domestic AMap standard and satellite tile sources.
+- Added Tencent satellite tiles as a domestic fallback source.
+- Added Tianditu vector tiles with optional TK configuration.
+- Added WGS84/GCJ-02 track conversion for domestic map sources.
+- Added automatic source fallback and stricter visible-tile completeness checks.
+- Removed redundant cache-busting tile retries to reduce mobile network requests.
+
 ## 0.3.0
 
 - Reframed the primary workflow around mobile 一生足迹 users.

@@ -4,6 +4,8 @@ import { calculateDistanceMeters, calculateDurationMs } from "../src/track-metri
 import { DEFAULT_DAILY_DATA_GAP_MINUTES, parseDailyData } from "../src/daily-data-parser";
 import { dailyDataRawFileName, unixDayStartSeconds } from "../src/daily-data-date";
 import { readCoreDailyNotesSettings, shouldFollowCoreDailyNotesSettings } from "../src/daily-notes-config";
+import { convertPointForMap, tileUrl } from "../src/coordinate";
+import { DEFAULT_MAP_TILE_PRESET_ID, MAP_TILE_PRESETS } from "../src/map-presets";
 import type { GpxDailyBannerSettings, ParsedTrack, TrackPoint } from "../src/types";
 
 function row(timestamp: number, lon: number, lat: number): string {
@@ -57,6 +59,34 @@ assert.equal(shouldFollowCoreDailyNotesSettings(undefined, defaultDailyNotes), t
 assert.equal(shouldFollowCoreDailyNotesSettings({ dailyNoteFolder: "Daily Notes", dailyNoteDateFormat: "YYYY-MM-DD", dailyNoteExtension: "md" }, defaultDailyNotes), true);
 assert.equal(shouldFollowCoreDailyNotesSettings({ dailyNoteFolder: "Personal Journal" }, defaultDailyNotes), false);
 assert.equal(shouldFollowCoreDailyNotesSettings({ useCoreDailyNotesSettings: false, dailyNoteFolder: "Daily Notes" }, defaultDailyNotes), false);
+
+assert.equal(DEFAULT_MAP_TILE_PRESET_ID, "amap-standard");
+assert.ok(MAP_TILE_PRESETS.some((preset) => preset.id === "amap-standard"));
+assert.ok(MAP_TILE_PRESETS.some((preset) => preset.id === "tencent-satellite"));
+assert.ok(MAP_TILE_PRESETS.some((preset) => preset.id === "tianditu-vector" && preset.requiresToken));
+assert.equal(
+  tileUrl("https://wprd0{s}.is.autonavi.com/appmaptile?x={x}&y={y}&z={z}", 14, 13532, 6660, {
+    subdomains: ["1", "2", "3", "4"],
+    tileYMode: "xyz"
+  }),
+  "https://wprd01.is.autonavi.com/appmaptile?x=13532&y=6660&z=14"
+);
+assert.equal(
+  tileUrl("https://p{s}.map.gtimg.com/sateTiles/{z}/{sx}/{sy}/{x}_{reverseY}.jpg", 14, 13532, 6660, {
+    subdomains: ["0", "1", "2"],
+    tileYMode: "tencent"
+  }),
+  "https://p2.map.gtimg.com/sateTiles/14/845/607/13532_9723.jpg"
+);
+const outsideChinaPoint = { lat: 51.5074, lon: -0.1278 };
+assert.deepEqual(convertPointForMap(outsideChinaPoint, "wgs84", "gcj02"), outsideChinaPoint);
+const domesticPoint = { lat: 39.9042, lon: 116.4074 };
+const domesticGcj02 = convertPointForMap(domesticPoint, "wgs84", "gcj02");
+assert.notEqual(domesticGcj02.lat, domesticPoint.lat);
+assert.notEqual(domesticGcj02.lon, domesticPoint.lon);
+const domesticRoundTrip = convertPointForMap(domesticGcj02, "gcj02", "wgs84");
+assert.ok(Math.abs(domesticRoundTrip.lat - domesticPoint.lat) < 0.00001);
+assert.ok(Math.abs(domesticRoundTrip.lon - domesticPoint.lon) < 0.00001);
 
 const metricPoint = (lat: number, lon: number, timestamp: number): TrackPoint => ({ lat, lon, time: new Date(timestamp) });
 const segmentedTrack: ParsedTrack[] = [{

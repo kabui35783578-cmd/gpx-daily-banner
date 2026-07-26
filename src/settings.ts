@@ -1,7 +1,7 @@
 import { App, Notice, PluginSettingTab, Setting, normalizePath } from "obsidian";
 import type GpxDailyBannerPlugin from "./main";
-import { getMapTilePreset, MAP_TILE_PRESETS } from "./map-presets";
-import { DailyDataSourceMode, GpxDailyBannerSettings, MapTilePresetId, SameDayMode, TimezoneMode } from "./types";
+import { DEFAULT_MAP_TILE_PRESET_ID, getMapTilePreset, MAP_TILE_PRESETS } from "./map-presets";
+import { DailyDataSourceMode, GpxDailyBannerSettings, MapCoordinateSystem, MapTilePresetId, SameDayMode, TimezoneMode } from "./types";
 import { cleanFolderPath, joinPath } from "./utils";
 import { DEFAULT_DAILY_DATA_GAP_MINUTES } from "./daily-data-parser";
 import { dailyDataRawFileName } from "./daily-data-date";
@@ -27,10 +27,12 @@ export const DEFAULT_SETTINGS: GpxDailyBannerSettings = {
   desktopBannerHeight: 220,
   mobileBannerHeight: 180,
   bannerRadius: 12,
-  mapTilePreset: "carto-light",
-  tileUrlTemplate: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-  tileAttribution: "© OpenStreetMap contributors © CARTO",
-  maxZoom: 20,
+  mapTilePreset: DEFAULT_MAP_TILE_PRESET_ID,
+  tileUrlTemplate: "https://wprd0{s}.is.autonavi.com/appmaptile?x={x}&y={y}&z={z}&size=1&scl=1&style=8&ltype=11",
+  tileAttribution: "© 高德地图",
+  mapTileToken: "",
+  trackCoordinateSystem: "wgs84",
+  maxZoom: 18,
   maxTileCount: 64,
   trackColor: "#ef4444",
   trackColors: ["#ef4444", "#2563eb", "#16a34a", "#9333ea", "#ea580c"],
@@ -243,7 +245,7 @@ export class GpxDailyBannerSettingTab extends PluginSettingTab {
 
     new Setting(rendering)
       .setName("地图背景")
-      .setDesc("在线地图会请求轨迹所在区域的瓦片；地图背景改动后可重新生成已有封面。")
+      .setDesc("默认优先使用国内高德地图；选定源失败时会依次尝试国内备用源和 CARTO，最后仍可生成离线轨迹图。")
       .addDropdown((dropdown) => {
         for (const preset of MAP_TILE_PRESETS) dropdown.addOption(preset.id, preset.name);
         dropdown.addOption("custom", "自定义");
@@ -264,6 +266,26 @@ export class GpxDailyBannerSettingTab extends PluginSettingTab {
       });
 
     new Setting(rendering)
+      .setName("轨迹坐标系")
+      .setDesc("手机 GPS 通常是 WGS84；使用高德或腾讯地图时，插件会在中国境内自动转换到 GCJ-02。若你的原始文件已经纠偏，请选择 GCJ-02。")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("wgs84", "WGS84（手机 GPS，推荐）")
+          .addOption("gcj02", "GCJ-02（已转换数据）")
+          .setValue(this.plugin.settings.trackCoordinateSystem)
+          .onChange(async (value) => {
+            this.plugin.settings.trackCoordinateSystem = value as MapCoordinateSystem;
+            await this.plugin.saveSettings();
+            void this.plugin.regenerateAllBanners("轨迹坐标系已保存，正在重新生成已有轨迹封面。");
+          })
+      );
+
+    textSetting(rendering, "天地图 TK（可选）", "选择天地图矢量时填写自己的 TK；只保存在当前 Vault 的插件设置中，不会写入仓库。", this.plugin.settings.mapTileToken, async (value) => {
+      this.plugin.settings.mapTileToken = value.trim();
+      await this.plugin.saveSettings();
+    });
+
+    new Setting(rendering)
       .setName("重新生成已有封面")
       .setDesc("地图背景或样式改动后，用这个按钮覆盖更新已经插入日记的 PNG。")
       .addButton((button) =>
@@ -274,7 +296,7 @@ export class GpxDailyBannerSettingTab extends PluginSettingTab {
             void this.plugin.regenerateAllBanners("正在重新生成已有轨迹封面。");
           })
       );
-    textSetting(rendering, "地图瓦片地址", "自定义时可填写 {z}/{x}/{y}，也支持 {s} 子域名和 {r} 高清后缀占位。", this.plugin.settings.tileUrlTemplate, async (value) => {
+    textSetting(rendering, "地图瓦片地址", "自定义时可填写 {z}/{x}/{y}；国内源还支持 {s}、{reverseY}、{sx}、{sy} 和 {token} 占位。", this.plugin.settings.tileUrlTemplate, async (value) => {
       this.plugin.settings.mapTilePreset = "custom";
       this.plugin.settings.tileUrlTemplate = value.trim() || DEFAULT_SETTINGS.tileUrlTemplate;
       await this.plugin.saveSettings();

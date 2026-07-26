@@ -3,7 +3,9 @@ export type SameDayMode = "merge" | "replace";
 export type ProcessStatus = "processed" | "pending-note" | "failed";
 export type DailyDataSourceKind = "external" | "bridge";
 export type DailyDataSourceMode = "external" | "bridge";
-export type MapTilePresetId = "carto-light" | "carto-voyager" | "carto-dark" | "osm-standard" | "opentopomap" | "custom";
+export type MapCoordinateSystem = "wgs84" | "gcj02";
+export type TileYMode = "xyz" | "tencent";
+export type MapTilePresetId = "amap-standard" | "amap-satellite" | "tencent-satellite" | "tianditu-vector" | "carto-light" | "carto-voyager" | "carto-dark" | "osm-standard" | "opentopomap" | "custom";
 
 export interface TrackPoint {
   lat: number;
@@ -73,6 +75,8 @@ export interface GpxDailyBannerSettings {
   mapTilePreset: MapTilePresetId;
   tileUrlTemplate: string;
   tileAttribution: string;
+  mapTileToken: string;
+  trackCoordinateSystem: MapCoordinateSystem;
   maxZoom: number;
   maxTileCount: number;
   trackColor: string;
