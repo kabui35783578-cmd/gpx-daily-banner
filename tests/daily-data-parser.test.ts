@@ -5,7 +5,7 @@ import { DEFAULT_DAILY_DATA_GAP_MINUTES, parseDailyData } from "../src/daily-dat
 import { dailyDataRawFileName, unixDayStartSeconds } from "../src/daily-data-date";
 import { readCoreDailyNotesSettings, shouldFollowCoreDailyNotesSettings } from "../src/daily-notes-config";
 import { convertPointForMap, tileUrl } from "../src/coordinate";
-import { DEFAULT_MAP_TILE_PRESET_ID, MAP_TILE_PRESETS } from "../src/map-presets";
+import { AMAP_STANDARD_TILE_URL, DEFAULT_MAP_TILE_PRESET_ID, MAP_TILE_PRESETS } from "../src/map-presets";
 import type { GpxDailyBannerSettings, ParsedTrack, TrackPoint } from "../src/types";
 
 function row(timestamp: number, lon: number, lat: number): string {
@@ -62,6 +62,8 @@ assert.equal(shouldFollowCoreDailyNotesSettings({ useCoreDailyNotesSettings: fal
 
 assert.equal(DEFAULT_MAP_TILE_PRESET_ID, "amap-standard");
 assert.ok(MAP_TILE_PRESETS.some((preset) => preset.id === "amap-standard"));
+assert.equal(AMAP_STANDARD_TILE_URL, "https://wprd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&x={x}&y={y}&z={z}&size=1&scl=1&style=8");
+assert.ok(!AMAP_STANDARD_TILE_URL.includes("ltype=11"));
 assert.ok(MAP_TILE_PRESETS.some((preset) => preset.id === "tencent-satellite"));
 assert.ok(MAP_TILE_PRESETS.some((preset) => preset.id === "tianditu-vector" && preset.requiresToken));
 assert.equal(

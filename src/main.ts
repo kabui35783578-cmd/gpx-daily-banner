@@ -65,6 +65,12 @@ export default class GpxDailyBannerPlugin extends Plugin {
       this.settings.tileAttribution = DEFAULT_SETTINGS.tileAttribution;
       this.settings.maxZoom = DEFAULT_SETTINGS.maxZoom;
     }
+    const legacyAmapStandardTileUrl = "https://wprd0{s}.is.autonavi.com/appmaptile?x={x}&y={y}&z={z}&size=1&scl=1&style=8&ltype=11";
+    if (loaded?.tileUrlTemplate === legacyAmapStandardTileUrl && (!loaded?.mapTilePreset || loaded.mapTilePreset === "amap-standard")) {
+      this.settings.mapTilePreset = DEFAULT_SETTINGS.mapTilePreset;
+      this.settings.tileUrlTemplate = DEFAULT_SETTINGS.tileUrlTemplate;
+      this.settings.tileAttribution = DEFAULT_SETTINGS.tileAttribution;
+    }
     this.settings.useCoreDailyNotesSettings = shouldFollowCoreDailyNotesSettings(loaded, {
       folder: DEFAULT_SETTINGS.dailyNoteFolder,
       format: DEFAULT_SETTINGS.dailyNoteDateFormat,

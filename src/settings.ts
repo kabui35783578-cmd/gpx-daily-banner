@@ -1,6 +1,6 @@
 import { App, Notice, PluginSettingTab, Setting, normalizePath } from "obsidian";
 import type GpxDailyBannerPlugin from "./main";
-import { DEFAULT_MAP_TILE_PRESET_ID, getMapTilePreset, MAP_TILE_PRESETS } from "./map-presets";
+import { AMAP_STANDARD_TILE_URL, DEFAULT_MAP_TILE_PRESET_ID, getMapTilePreset, MAP_TILE_PRESETS } from "./map-presets";
 import { DailyDataSourceMode, GpxDailyBannerSettings, MapCoordinateSystem, MapTilePresetId, SameDayMode, TimezoneMode } from "./types";
 import { cleanFolderPath, joinPath } from "./utils";
 import { DEFAULT_DAILY_DATA_GAP_MINUTES } from "./daily-data-parser";
@@ -28,7 +28,7 @@ export const DEFAULT_SETTINGS: GpxDailyBannerSettings = {
   mobileBannerHeight: 180,
   bannerRadius: 12,
   mapTilePreset: DEFAULT_MAP_TILE_PRESET_ID,
-  tileUrlTemplate: "https://wprd0{s}.is.autonavi.com/appmaptile?x={x}&y={y}&z={z}&size=1&scl=1&style=8&ltype=11",
+  tileUrlTemplate: AMAP_STANDARD_TILE_URL,
   tileAttribution: "© 高德地图",
   mapTileToken: "",
   trackCoordinateSystem: "wgs84",

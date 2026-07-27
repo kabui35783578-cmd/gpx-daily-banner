@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2
+
+- Fixed the default AMap standard basemap so Chinese place names and street labels are visible.
+- Added automatic migration from the previous road-network-only AMap tile configuration.
+- Added regression coverage for the labeled AMap tile URL.
+
 ## 0.3.1
 
 - Added domestic AMap standard and satellite tile sources.

@@ -18,12 +18,13 @@ const TENCENT_SUBDOMAINS = ["0", "1", "2"] as const;
 const TIANDITU_SUBDOMAINS = ["0", "1", "2", "3", "4", "5", "6", "7"] as const;
 
 export const DEFAULT_MAP_TILE_PRESET_ID: MapTilePresetId = "amap-standard";
+export const AMAP_STANDARD_TILE_URL = "https://wprd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&x={x}&y={y}&z={z}&size=1&scl=1&style=8";
 
 export const MAP_TILE_PRESETS: MapTilePreset[] = [
   {
     id: "amap-standard",
     name: "高德标准（国内优先）",
-    tileUrlTemplate: "https://wprd0{s}.is.autonavi.com/appmaptile?x={x}&y={y}&z={z}&size=1&scl=1&style=8&ltype=11",
+    tileUrlTemplate: AMAP_STANDARD_TILE_URL,
     tileAttribution: "© 高德地图",
     maxZoom: 18,
     coordinateSystem: "gcj02",
