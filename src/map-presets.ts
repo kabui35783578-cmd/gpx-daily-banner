@@ -17,14 +17,36 @@ const AMAP_SUBDOMAINS = ["1", "2", "3", "4"] as const;
 const TENCENT_SUBDOMAINS = ["0", "1", "2"] as const;
 const TIANDITU_SUBDOMAINS = ["0", "1", "2", "3", "4", "5", "6", "7"] as const;
 
-export const DEFAULT_MAP_TILE_PRESET_ID: MapTilePresetId = "amap-standard";
+export const DEFAULT_MAP_TILE_PRESET_ID: MapTilePresetId = "amap-clean";
 export const AMAP_STANDARD_TILE_URL = "https://wprd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&x={x}&y={y}&z={z}&size=1&scl=1&style=8";
+export const AMAP_CLEAN_TILE_URL = "https://wprd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&x={x}&y={y}&z={z}&size=1&scl=1&style=9&ltype=6";
+export const AMAP_MINIMAL_TILE_URL = "https://wprd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&x={x}&y={y}&z={z}&size=1&scl=1&style=10&ltype=6";
 
 export const MAP_TILE_PRESETS: MapTilePreset[] = [
+  {
+    id: "amap-clean",
+    name: "高德清爽标注（推荐）",
+    tileUrlTemplate: AMAP_CLEAN_TILE_URL,
+    tileAttribution: "© 高德地图",
+    maxZoom: 18,
+    coordinateSystem: "gcj02",
+    subdomains: AMAP_SUBDOMAINS,
+    tileYMode: "xyz"
+  },
   {
     id: "amap-standard",
     name: "高德标准（国内优先）",
     tileUrlTemplate: AMAP_STANDARD_TILE_URL,
+    tileAttribution: "© 高德地图",
+    maxZoom: 18,
+    coordinateSystem: "gcj02",
+    subdomains: AMAP_SUBDOMAINS,
+    tileYMode: "xyz"
+  },
+  {
+    id: "amap-minimal",
+    name: "高德极简标注",
+    tileUrlTemplate: AMAP_MINIMAL_TILE_URL,
     tileAttribution: "© 高德地图",
     maxZoom: 18,
     coordinateSystem: "gcj02",

@@ -1,6 +1,6 @@
 import { App, Notice, PluginSettingTab, Setting, normalizePath } from "obsidian";
 import type GpxDailyBannerPlugin from "./main";
-import { AMAP_STANDARD_TILE_URL, DEFAULT_MAP_TILE_PRESET_ID, getMapTilePreset, MAP_TILE_PRESETS } from "./map-presets";
+import { AMAP_CLEAN_TILE_URL, DEFAULT_MAP_TILE_PRESET_ID, getMapTilePreset, MAP_TILE_PRESETS } from "./map-presets";
 import { DailyDataSourceMode, GpxDailyBannerSettings, MapCoordinateSystem, MapTilePresetId, SameDayMode, TimezoneMode } from "./types";
 import { cleanFolderPath, joinPath } from "./utils";
 import { DEFAULT_DAILY_DATA_GAP_MINUTES } from "./daily-data-parser";
@@ -28,7 +28,7 @@ export const DEFAULT_SETTINGS: GpxDailyBannerSettings = {
   mobileBannerHeight: 180,
   bannerRadius: 12,
   mapTilePreset: DEFAULT_MAP_TILE_PRESET_ID,
-  tileUrlTemplate: AMAP_STANDARD_TILE_URL,
+  tileUrlTemplate: AMAP_CLEAN_TILE_URL,
   tileAttribution: "© 高德地图",
   mapTileToken: "",
   trackCoordinateSystem: "wgs84",
@@ -191,7 +191,7 @@ export class GpxDailyBannerSettingTab extends PluginSettingTab {
       this.plugin.settings.dailyDataGapMinutes = value;
       await this.plugin.saveSettings();
     });
-    numberSettingWithDesc(sync, "打开 Obsidian 后读取延迟（秒）", "快捷指令或同步较慢时可适当增加；插件只在打开 Obsidian 时读取一次，不后台轮询。", this.plugin.settings.dailyDataStartupDelaySeconds, 0, 60, async (value) => {
+    numberSettingWithDesc(sync, "打开 Obsidian 后读取延迟（秒）", "快捷指令或同步较慢时可适当增加；插件会在启动时有限重试，并在轨迹同步文件变化时自动读取，不后台轮询。", this.plugin.settings.dailyDataStartupDelaySeconds, 0, 60, async (value) => {
       this.plugin.settings.dailyDataStartupDelaySeconds = value;
       await this.plugin.saveSettings();
     });
@@ -245,7 +245,7 @@ export class GpxDailyBannerSettingTab extends PluginSettingTab {
 
     new Setting(rendering)
       .setName("地图背景")
-      .setDesc("默认优先使用国内高德地图；选定源失败时会依次尝试国内备用源和 CARTO，最后仍可生成离线轨迹图。")
+      .setDesc("默认使用高德清爽标注底图；选定源失败时会依次尝试国内备用源和 CARTO，最后仍可生成离线轨迹图。")
       .addDropdown((dropdown) => {
         for (const preset of MAP_TILE_PRESETS) dropdown.addOption(preset.id, preset.name);
         dropdown.addOption("custom", "自定义");

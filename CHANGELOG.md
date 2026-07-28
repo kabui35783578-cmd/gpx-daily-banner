@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3
+
+- Fixed mobile startup timing by retrying the bridge file read a limited number of times.
+- Added create/modify listeners for the current `_raw` bridge file and waited for a stable file before parsing.
+- Added lighter AMap `高德清爽标注` and `高德极简标注` presets; the clean preset is now the default for new and legacy default installations.
+
 ## 0.3.2
 
 - Fixed the default AMap standard basemap so Chinese place names and street labels are visible.

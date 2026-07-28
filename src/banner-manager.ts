@@ -137,7 +137,7 @@ export class BannerManager {
     const previous = this.getData().dailyDataRecords[dateKey];
     if (!options.force && previous?.fingerprint === source.fingerprint && previous.status === "processed") {
       debug(settings, "daily data unchanged", dateKey, source.path);
-      return false;
+      return true;
     }
 
     await this.queue.runForFile(`daily-data:${dateKey}`, dateKey, async () => {

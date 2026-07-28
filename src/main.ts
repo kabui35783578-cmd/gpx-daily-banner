@@ -1,5 +1,6 @@
 import { App, Modal, Notice, Plugin, TAbstractFile, TFile } from "obsidian";
 import { BannerManager } from "./banner-manager";
+import { dailyDataRawFileName } from "./daily-data-date";
 import { readCoreDailyNotesSettings, shouldFollowCoreDailyNotesSettings } from "./daily-notes-config";
 import { extractBannerImagePath, removeBannerBlock } from "./daily-note";
 import { GPX_VIEW_TYPE, GpxPreviewView } from "./gpx-view";
@@ -7,12 +8,13 @@ import { inferMapTilePresetId } from "./map-presets";
 import { DEFAULT_SETTINGS, GpxDailyBannerSettingTab } from "./settings";
 import { todayKey } from "./track-date";
 import { GpxDailyBannerSettings, PluginData } from "./types";
-import { BANNER_END, BANNER_START, cleanFolderPath, debug, isGpxFile, isTFile, replaceCssVariables } from "./utils";
+import { BANNER_END, BANNER_START, cleanFilePath, cleanFolderPath, debug, delay, isGpxFile, isTFile, joinPath, replaceCssVariables } from "./utils";
 
 export default class GpxDailyBannerPlugin extends Plugin {
   settings: GpxDailyBannerSettings = { ...DEFAULT_SETTINGS };
   data: PluginData = { records: {}, dailyDataRecords: {} };
   manager!: BannerManager;
+  private dailyDataRefreshTimers = new Map<string, number>();
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -33,18 +35,17 @@ export default class GpxDailyBannerPlugin extends Plugin {
     this.registerBannerMarkerHider();
 
     this.app.workspace.onLayoutReady(() => {
-      this.registerEvent(
-        this.app.vault.on("create", (file) => {
-          void this.handleCreatedFile(file);
-        })
-      );
+      const handleVaultFileChange = (file: TAbstractFile) => {
+        void this.handleVaultFileChange(file);
+      };
+      this.registerEvent(this.app.vault.on("create", handleVaultFileChange));
+      this.registerEvent(this.app.vault.on("modify", handleVaultFileChange));
 
       const startupRefresh = window.setTimeout(() => {
-        void this.manager.refreshTodayDailyData().catch((error) => {
-          debug(this.settings, "startup daily data refresh failed", error);
-        });
+        void this.refreshTodayDailyDataOnStartup();
       }, this.settings.dailyDataStartupDelaySeconds * 1000);
       this.register(() => window.clearTimeout(startupRefresh));
+      this.register(() => this.clearDailyDataRefreshTimers());
     });
 
     debug(this.settings, "loaded");
@@ -65,8 +66,11 @@ export default class GpxDailyBannerPlugin extends Plugin {
       this.settings.tileAttribution = DEFAULT_SETTINGS.tileAttribution;
       this.settings.maxZoom = DEFAULT_SETTINGS.maxZoom;
     }
-    const legacyAmapStandardTileUrl = "https://wprd0{s}.is.autonavi.com/appmaptile?x={x}&y={y}&z={z}&size=1&scl=1&style=8&ltype=11";
-    if (loaded?.tileUrlTemplate === legacyAmapStandardTileUrl && (!loaded?.mapTilePreset || loaded.mapTilePreset === "amap-standard")) {
+    const legacyAmapStandardTileUrls = [
+      "https://wprd0{s}.is.autonavi.com/appmaptile?x={x}&y={y}&z={z}&size=1&scl=1&style=8&ltype=11",
+      "https://wprd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&x={x}&y={y}&z={z}&size=1&scl=1&style=8"
+    ];
+    if (legacyAmapStandardTileUrls.includes(loaded?.tileUrlTemplate) && (!loaded?.mapTilePreset || loaded.mapTilePreset === "amap-standard")) {
       this.settings.mapTilePreset = DEFAULT_SETTINGS.mapTilePreset;
       this.settings.tileUrlTemplate = DEFAULT_SETTINGS.tileUrlTemplate;
       this.settings.tileAttribution = DEFAULT_SETTINGS.tileAttribution;
@@ -269,14 +273,59 @@ export default class GpxDailyBannerPlugin extends Plugin {
     schedule();
   }
 
-  private async handleCreatedFile(file: TAbstractFile): Promise<void> {
+  private async handleVaultFileChange(file: TAbstractFile): Promise<void> {
     if (isGpxFile(file)) {
       await this.manager.processGpxFile(file);
       return;
     }
     if (file instanceof TFile && file.extension === "md") {
       await this.manager.retryPendingForNote(file.path);
+      return;
     }
+    if (this.isTodayDailyDataBridgeFile(file)) {
+      this.scheduleDailyDataRefresh(todayKey(this.settings));
+    }
+  }
+
+  private async refreshTodayDailyDataOnStartup(): Promise<void> {
+    const retryDelays = [0, 1500, 3000, 5000];
+    for (const retryDelay of retryDelays) {
+      if (retryDelay > 0) await delay(retryDelay);
+      try {
+        const sourceReady = await this.manager.refreshTodayDailyData();
+        if (sourceReady) return;
+      } catch (error) {
+        debug(this.settings, "startup daily data refresh failed", error);
+      }
+    }
+    debug(this.settings, "startup daily data refresh exhausted");
+  }
+
+  private isTodayDailyDataBridgeFile(file: TAbstractFile): boolean {
+    if (!(file instanceof TFile) || this.settings.dailyDataSourceMode !== "bridge") return false;
+    const dateKey = todayKey(this.settings);
+    const rawName = dailyDataRawFileName(dateKey, this.settings);
+    const folder = cleanFolderPath(this.settings.dailyDataBridgeFolder);
+    if (!folder) return false;
+    const filePath = cleanFilePath(file.path);
+    return filePath === joinPath(folder, rawName) || filePath === joinPath(folder, `${rawName}.csv`);
+  }
+
+  private scheduleDailyDataRefresh(dateKey: string): void {
+    const previous = this.dailyDataRefreshTimers.get(dateKey);
+    if (previous !== undefined) window.clearTimeout(previous);
+    const timer = window.setTimeout(() => {
+      this.dailyDataRefreshTimers.delete(dateKey);
+      void this.manager.refreshDailyDataForDate(dateKey).catch((error) => {
+        debug(this.settings, "daily data change refresh failed", dateKey, error);
+      });
+    }, 1200);
+    this.dailyDataRefreshTimers.set(dateKey, timer);
+  }
+
+  private clearDailyDataRefreshTimers(): void {
+    for (const timer of this.dailyDataRefreshTimers.values()) window.clearTimeout(timer);
+    this.dailyDataRefreshTimers.clear();
   }
 
   private openSettings(): void {

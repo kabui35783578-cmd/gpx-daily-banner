@@ -5,7 +5,7 @@ export type DailyDataSourceKind = "external" | "bridge";
 export type DailyDataSourceMode = "external" | "bridge";
 export type MapCoordinateSystem = "wgs84" | "gcj02";
 export type TileYMode = "xyz" | "tencent";
-export type MapTilePresetId = "amap-standard" | "amap-satellite" | "tencent-satellite" | "tianditu-vector" | "carto-light" | "carto-voyager" | "carto-dark" | "osm-standard" | "opentopomap" | "custom";
+export type MapTilePresetId = "amap-clean" | "amap-standard" | "amap-minimal" | "amap-satellite" | "tencent-satellite" | "tianditu-vector" | "carto-light" | "carto-voyager" | "carto-dark" | "osm-standard" | "opentopomap" | "custom";
 
 export interface TrackPoint {
   lat: number;

@@ -1,7 +1,7 @@
 import { FileSystemAdapter, TFile, Vault } from "obsidian";
 import { dailyDataRawFileName } from "./daily-data-date";
 import { DailyDataSourceKind, GpxDailyBannerSettings } from "./types";
-import { cleanFilePath, debug, joinPath } from "./utils";
+import { cleanFilePath, debug, joinPath, waitForStableFile } from "./utils";
 
 export interface DailyDataSource {
   kind: DailyDataSourceKind;
@@ -51,7 +51,9 @@ async function readBridgeData(vault: Vault, settings: GpxDailyBannerSettings, fi
     const file = vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) continue;
     try {
-      const text = await vault.read(file);
+      const stableFile = await waitForStableFile(vault, file, 2);
+      if (!stableFile) continue;
+      const text = await vault.read(stableFile);
       return {
         source: {
           kind: "bridge",
