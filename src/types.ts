@@ -108,6 +108,7 @@ export interface RenderInput {
   tracks: ParsedTrack[];
   dateKey: string;
   stats: RenderStats;
+  viewportPadding?: number;
 }
 
 export interface TileLoadResult {

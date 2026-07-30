@@ -48,7 +48,7 @@ async function renderMapBannerWithSource(input: RenderInput, settings: GpxDailyB
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("当前环境不支持 Canvas。");
 
-  const viewport = chooseViewport(tracks, { ...settings, maxZoom: Math.min(settings.maxZoom, source.maxZoom) });
+  const viewport = chooseViewport(tracks, { ...settings, maxZoom: Math.min(settings.maxZoom, source.maxZoom) }, input.viewportPadding);
   const tileTasks = [];
   for (let x = viewport.minTileX; x <= viewport.maxTileX; x++) {
     for (let y = viewport.minTileY; y <= viewport.maxTileY; y++) {
@@ -157,10 +157,10 @@ async function loadVisibleTiles(tileTasks: TileTask[]): Promise<LoadedTile[]> {
   return loadedTiles;
 }
 
-export function chooseViewport(tracks: RenderInput["tracks"], settings: GpxDailyBannerSettings): Viewport {
+export function chooseViewport(tracks: RenderInput["tracks"], settings: GpxDailyBannerSettings, requestedPadding = 72): Viewport {
   const bounds = collectBounds(tracks);
   const center = centerOfBounds(bounds);
-  const padding = 72;
+  const padding = Math.max(48, Math.min(240, requestedPadding));
   const scales = [1, 1.15, 1.35, 1.6, 2];
 
   for (let zoom = settings.maxZoom; zoom >= 1; zoom--) {

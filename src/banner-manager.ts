@@ -8,8 +8,8 @@ import { ProcessingQueue } from "./processing-queue";
 import { resolveTrackDate, todayKey } from "./track-date";
 import { calculateDistanceMeters, calculateDurationMs } from "./track-metrics";
 import { GpxDailyBannerSettings, DailyDataRecord, ParsedTrack, PluginData, ProcessedFileRecord, RenderInput } from "./types";
-import { bannerImagePath, saveBannerImage } from "./image-storage";
-import { dailyNotePathForDate, getOrCreateDailyNote, upsertBannerBlock } from "./daily-note";
+import { bannerImagePath, HERO_IMAGE_DIMENSIONS, heroImagePaths, saveBannerImage } from "./image-storage";
+import { dailyNotePathForDate, extractBannerImagePaths, getOrCreateDailyNote, upsertBannerBlock } from "./daily-note";
 import { cleanFilePath, debug, ensureFolder, fileIsInFolder, isGpxFile, joinPath, sanitizeFilePart, waitForStableFile } from "./utils";
 
 export interface ProcessOptions {
@@ -33,6 +33,16 @@ interface TrackJob {
   force: boolean;
   file?: TFile;
   dailyData?: DailyDataSource;
+}
+
+interface RenderedImage {
+  path: string;
+  data: ArrayBuffer;
+}
+
+interface RenderResult {
+  data: ArrayBuffer;
+  usedOfflineFallback: boolean;
 }
 
 export class BannerManager {
@@ -135,7 +145,8 @@ export class BannerManager {
     }
 
     const previous = this.getData().dailyDataRecords[dateKey];
-    if (!options.force && previous?.fingerprint === source.fingerprint && previous.status === "processed") {
+    const needsHeroMigration = previous?.status === "processed" && await this.noteNeedsHeroImages(dateKey);
+    if (!options.force && previous?.fingerprint === source.fingerprint && previous.status === "processed" && !needsHeroMigration) {
       debug(settings, "daily data unchanged", dateKey, source.path);
       return true;
     }
@@ -154,6 +165,15 @@ export class BannerManager {
       });
     });
     return true;
+  }
+
+  private async noteNeedsHeroImages(dateKey: string): Promise<boolean> {
+    const note = this.vault.getAbstractFileByPath(dailyNotePathForDate(dateKey, this.getSettings()));
+    if (!(note instanceof TFile)) return true;
+
+    const imagePaths = extractBannerImagePaths(await this.vault.read(note));
+    if (imagePaths.length < 2) return true;
+    return imagePaths.some((path) => !(this.vault.getAbstractFileByPath(path) instanceof TFile));
   }
 
   async regenerateForDate(dateKey: string): Promise<void> {
@@ -245,35 +265,57 @@ export class BannerManager {
       }
     };
 
-    let imageData: ArrayBuffer;
-    if (!settings.onlineMapEnabled) {
-      imageData = await renderOfflineBanner(input, settings, "在线地图已关闭");
-    } else {
-      try {
-        imageData = await renderMapBanner(input, settings);
-      } catch (error) {
-        debug(settings, "online render failed", error);
-        if (!settings.offlineFallback) {
-          await this.markJobFailed(job, note.path, error);
-          new Notice("地图瓦片加载失败，且未开启离线图。");
-          return;
-        }
-        imageData = await renderOfflineBanner(input, settings, "地图底图加载失败");
-        new Notice("地图瓦片加载失败，已生成离线轨迹图。");
-      }
-    }
-
     const imagePath = bannerImagePath(job.dateKey, settings);
+    const heroPaths = heroImagePaths(job.dateKey, settings);
+    const renderedImages: RenderedImage[] = [];
+    let usedOfflineFallback = false;
     try {
-      await saveBannerImage(this.vault, imagePath, imageData);
+      const bannerResult = await this.renderImage(input, settings);
+      renderedImages.push({ path: imagePath, data: bannerResult.data });
+      usedOfflineFallback = bannerResult.usedOfflineFallback;
+
+      for (const variant of ["desktop", "mobile"] as const) {
+        const dimensions = HERO_IMAGE_DIMENSIONS[variant];
+        const heroSettings = {
+          ...settings,
+          imageWidth: dimensions.width,
+          imageHeight: dimensions.height
+        };
+        const heroInput: RenderInput = {
+          ...input,
+          viewportPadding: Math.round(Math.min(dimensions.width, dimensions.height) * 0.13)
+        };
+        const heroResult = await this.renderImage(heroInput, heroSettings);
+        renderedImages.push({ path: heroPaths[variant], data: heroResult.data });
+        usedOfflineFallback = usedOfflineFallback || heroResult.usedOfflineFallback;
+      }
     } catch (error) {
       await this.markJobFailed(job, note.path, error);
-      new Notice("图片保存失败。");
+      if (settings.onlineMapEnabled && !settings.offlineFallback) {
+        new Notice("地图瓦片加载失败，且未开启离线图。");
+      } else {
+        new Notice(error instanceof Error ? error.message : "轨迹封面生成失败。");
+      }
       return;
     }
 
     try {
-      await upsertBannerBlock(this.vault, note, imagePath);
+      for (const renderedImage of renderedImages) {
+        await saveBannerImage(this.vault, renderedImage.path, renderedImage.data);
+      }
+    } catch (error) {
+      await this.markJobFailed(job, note.path, error);
+      debug(settings, "save rendered images failed", error);
+      new Notice("图片保存失败。");
+      return;
+    }
+
+    if (usedOfflineFallback) {
+      new Notice("地图瓦片加载失败，已生成离线轨迹图。");
+    }
+
+    try {
+      await upsertBannerBlock(this.vault, note, heroPaths);
     } catch (error) {
       await this.markJobFailed(job, note.path, error);
       new Notice("日记写入失败。");
@@ -336,6 +378,29 @@ export class BannerManager {
       new Notice("GPX 轨迹封面已生成，原始 GPX 已删除。");
     } else {
       new Notice("GPX 轨迹封面已生成。");
+    }
+  }
+
+  private async renderImage(input: RenderInput, settings: GpxDailyBannerSettings): Promise<RenderResult> {
+    if (!settings.onlineMapEnabled) {
+      return {
+        data: await renderOfflineBanner(input, settings, "在线地图已关闭"),
+        usedOfflineFallback: false
+      };
+    }
+
+    try {
+      return {
+        data: await renderMapBanner(input, settings),
+        usedOfflineFallback: false
+      };
+    } catch (error) {
+      debug(settings, "online render failed", error);
+      if (!settings.offlineFallback) throw error;
+      return {
+        data: await renderOfflineBanner(input, settings, "地图底图加载失败"),
+        usedOfflineFallback: true
+      };
     }
   }
 

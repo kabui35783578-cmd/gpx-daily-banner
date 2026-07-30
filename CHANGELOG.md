@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.4
+
+### Changed
+
+- 为日记生成桌面版和手机竖版两张全屏地图 Hero，同时保留横向封面供 GPX 预览使用。
+- 移除会造成大块空白的模糊背景补图逻辑，改为响应式图片铺满首屏。
+- 使用稳定的首屏入场动效；触摸上滑或鼠标滚轮继续使用 Obsidian 原生滚动，整张 Hero 与正文同步移动。
+- 修复 Bureau 等主题和 Obsidian 核心样式造成的左侧留白、顶部空白与嵌入边距。
+- 在屏幕旋转、分屏和移动可视区域变化后自动重新测量并对齐 Hero。
+
 ## 0.3.3
 
 - Fixed mobile startup timing by retrying the bridge file read a limited number of times.

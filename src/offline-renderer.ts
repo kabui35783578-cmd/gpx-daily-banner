@@ -31,7 +31,7 @@ export async function renderOfflineBanner(input: RenderInput, settings: GpxDaily
   }
 
   const bounds = collectBounds(input.tracks);
-  const padding = 80;
+  const padding = Math.max(80, Math.min(240, input.viewportPadding ?? 80));
   const lonSpan = Math.max(0.000001, bounds.maxLon - bounds.minLon);
   const latSpan = Math.max(0.000001, bounds.maxLat - bounds.minLat);
   const scale = Math.min((canvas.width - padding * 2) / lonSpan, (canvas.height - padding * 2) / latSpan);

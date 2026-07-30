@@ -27,8 +27,8 @@ export async function getOrCreateDailyNote(vault: Vault, dateKey: string, settin
   }
 }
 
-export async function upsertBannerBlock(vault: Vault, note: TFile, imagePath: string): Promise<void> {
-  const block = `${BANNER_START}\n![[${imagePath}|gpx-daily-banner]]\n${BANNER_END}`;
+export async function upsertBannerBlock(vault: Vault, note: TFile, heroPaths: { desktop: string; mobile: string }): Promise<void> {
+  const block = `${BANNER_START}\n![[${heroPaths.desktop}|gpx-daily-banner hero-desktop]]\n![[${heroPaths.mobile}|gpx-daily-banner hero-mobile]]\n${BANNER_END}`;
   await vault.process(note, (content) => {
     const pattern = new RegExp(`${escapeRegex(BANNER_START)}[\\s\\S]*?${escapeRegex(BANNER_END)}`);
     if (pattern.test(content)) {
@@ -56,8 +56,13 @@ export async function removeBannerBlock(vault: Vault, note: TFile): Promise<bool
 }
 
 export function extractBannerImagePath(content: string): string | undefined {
-  const pattern = new RegExp(`${escapeRegex(BANNER_START)}[\\s\\S]*?!\\[\\[([^|\\]]+)(?:\\|[^\\]]*)?\\]\\][\\s\\S]*?${escapeRegex(BANNER_END)}`);
-  return content.match(pattern)?.[1];
+  return extractBannerImagePaths(content)[0];
+}
+
+export function extractBannerImagePaths(content: string): string[] {
+  const blockPattern = new RegExp(`${escapeRegex(BANNER_START)}[\\s\\S]*?${escapeRegex(BANNER_END)}`);
+  const block = content.match(blockPattern)?.[0] ?? "";
+  return Array.from(block.matchAll(/!\[\[([^|\]]+)(?:\|[^\]]*)?\]\]/g), (match) => match[1]);
 }
 
 function frontmatterEndIndex(content: string): number {

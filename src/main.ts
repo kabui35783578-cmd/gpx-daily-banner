@@ -2,7 +2,7 @@ import { App, Modal, Notice, Plugin, TAbstractFile, TFile } from "obsidian";
 import { BannerManager } from "./banner-manager";
 import { dailyDataRawFileName } from "./daily-data-date";
 import { readCoreDailyNotesSettings, shouldFollowCoreDailyNotesSettings } from "./daily-notes-config";
-import { extractBannerImagePath, removeBannerBlock } from "./daily-note";
+import { extractBannerImagePaths, removeBannerBlock } from "./daily-note";
 import { GPX_VIEW_TYPE, GpxPreviewView } from "./gpx-view";
 import { inferMapTilePresetId } from "./map-presets";
 import { DEFAULT_SETTINGS, GpxDailyBannerSettingTab } from "./settings";
@@ -253,7 +253,9 @@ export default class GpxDailyBannerPlugin extends Plugin {
 
   private registerBannerMarkerHider(): void {
     this.registerMarkdownPostProcessor((element) => {
+      decorateBannerEmbeds(element);
       hideBannerMarkers(element);
+      scheduleBannerHeroAlignment();
     });
 
     let pending = false;
@@ -262,14 +264,32 @@ export default class GpxDailyBannerPlugin extends Plugin {
       pending = true;
       window.requestAnimationFrame(() => {
         pending = false;
+        decorateBannerEmbeds(document.body);
         hideLivePreviewBannerMarkers(document.body);
+        alignBannerHeroEmbeds();
       });
     };
 
     const observer = new MutationObserver(schedule);
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     this.register(() => observer.disconnect());
+
+    const viewportObserver = new ResizeObserver(schedule);
+    viewportObserver.observe(document.documentElement);
+    this.register(() => viewportObserver.disconnect());
+
+    const mobileLayout = window.matchMedia("(max-width: 600px)");
+    mobileLayout.addEventListener("change", schedule);
+    this.register(() => mobileLayout.removeEventListener("change", schedule));
+
+    const visualViewport = window.visualViewport;
+    if (visualViewport) {
+      visualViewport.addEventListener("resize", schedule);
+      this.register(() => visualViewport.removeEventListener("resize", schedule));
+    }
+
     this.registerEvent(this.app.workspace.on("layout-change", schedule));
+    this.registerDomEvent(window, "resize", schedule);
     schedule();
   }
 
@@ -352,21 +372,61 @@ export default class GpxDailyBannerPlugin extends Plugin {
 
   private async clearCurrentNoteBanner(note: TFile): Promise<void> {
     const content = await this.app.vault.read(note);
-    const imagePath = extractBannerImagePath(content);
-    new ConfirmDeleteImageModal(this.app, Boolean(imagePath), async (deleteImage) => {
+    const imagePaths = extractBannerImagePaths(content);
+    new ConfirmDeleteImageModal(this.app, imagePaths.length > 0, async (deleteImage) => {
       const removed = await removeBannerBlock(this.app.vault, note);
       if (!removed) {
         new Notice("当前日记没有轨迹封面。");
         return;
       }
-      if (deleteImage && imagePath) {
-        const imageFile = this.app.vault.getAbstractFileByPath(imagePath);
-        if (imageFile instanceof TFile) {
-          await this.app.vault.delete(imageFile);
+      if (deleteImage) {
+        for (const imagePath of imagePaths) {
+          const imageFile = this.app.vault.getAbstractFileByPath(imagePath);
+          if (imageFile instanceof TFile) {
+            await this.app.vault.delete(imageFile);
+          }
         }
       }
       new Notice("当前日记的 GPX 轨迹封面已清除。");
     }).open();
+  }
+}
+
+let bannerHeroAlignmentPending = false;
+
+function scheduleBannerHeroAlignment(): void {
+  if (bannerHeroAlignmentPending) return;
+  bannerHeroAlignmentPending = true;
+  window.requestAnimationFrame(() => {
+    bannerHeroAlignmentPending = false;
+    alignBannerHeroEmbeds();
+  });
+}
+
+function alignBannerHeroEmbeds(): void {
+  const heroes = document.querySelectorAll<HTMLElement>(".gpx-daily-banner-hero");
+  for (const hero of Array.from(heroes)) {
+    const view = hero.closest<HTMLElement>(".markdown-preview-view, .markdown-source-view.mod-cm6");
+    if (!view) continue;
+
+    const heroRect = hero.getBoundingClientRect();
+    const viewRect = view.getBoundingClientRect();
+    if (viewRect.width <= 0 || heroRect.width <= 0) continue;
+
+    const scrollContainer = view.matches(".markdown-source-view.mod-cm6")
+      ? view.querySelector<HTMLElement>(".cm-scroller")
+      : view;
+    const scrollTop = scrollContainer?.scrollTop ?? 0;
+    const computed = window.getComputedStyle(hero);
+    const appliedShiftX = Number.parseFloat(computed.marginLeft) || 0;
+    const appliedShiftY = Number.parseFloat(computed.marginTop) || 0;
+    const correctionX = viewRect.left - heroRect.left;
+    const correctionY = viewRect.top - (heroRect.top + scrollTop);
+
+    hero.style.setProperty("--gpx-hero-shift-x", `${Math.round(appliedShiftX + correctionX)}px`);
+    hero.style.setProperty("--gpx-hero-shift-y", `${Math.round(appliedShiftY + correctionY)}px`);
+    hero.style.setProperty("--gpx-hero-width", `${Math.round(viewRect.width)}px`);
+    hero.style.setProperty("--gpx-hero-height", `${Math.round(viewRect.height)}px`);
   }
 }
 
@@ -407,6 +467,25 @@ class ConfirmDeleteImageModal extends Modal {
         void this.onConfirm(false);
       };
     }
+  }
+}
+
+function decorateBannerEmbeds(container: ParentNode): void {
+  const selector = '.image-embed[alt*="gpx-daily-banner"], .image-embed[src*="-gpx-hero-"], .image-embed:has(img[alt*="gpx-daily-banner"]), .image-embed:has(img[src*="-gpx-banner"]), .image-embed:has(img[src*="-gpx-hero-"]), .internal-embed[alt*="gpx-daily-banner"], .internal-embed[alt*="-gpx-banner"], .internal-embed[src*="-gpx-banner"], .internal-embed[src*="-gpx-hero-"], .internal-embed:has(img[alt*="gpx-daily-banner"]), .internal-embed:has(img[src*="-gpx-banner"]), .internal-embed:has(img[src*="-gpx-hero-"]), .cm-embed-block:has(img[alt*="gpx-daily-banner"]), .cm-embed-block:has(img[src*="-gpx-banner"]), .cm-embed-block:has(img[src*="-gpx-hero-"])';
+  const embeds: HTMLElement[] = [];
+  if (container instanceof HTMLElement && container.matches(selector)) {
+    embeds.push(container);
+  }
+  embeds.push(...Array.from(container.querySelectorAll<HTMLElement>(selector)));
+
+  for (const embed of Array.from(embeds)) {
+    if (embed.parentElement?.closest(".gpx-daily-banner-hero") || embed.querySelector(".gpx-daily-banner-hero")) continue;
+    embed.classList.add("gpx-daily-banner-hero");
+    const alt = embed.getAttribute("alt") ?? embed.querySelector("img")?.getAttribute("alt") ?? "";
+    const source = embed.getAttribute("src") ?? embed.querySelector("img")?.getAttribute("src") ?? "";
+    const marker = `${alt} ${source}`;
+    embed.classList.toggle("gpx-daily-banner-hero-mobile", marker.includes("hero-mobile"));
+    embed.classList.toggle("gpx-daily-banner-hero-desktop", marker.includes("hero-desktop"));
   }
 }
 
