@@ -291,14 +291,14 @@ img[src*="-gpx-banner"],
   }
 }
 
-.gpx-daily-banner-hero > .image-wrapper {
+.gpx-daily-banner-hero.gpx-daily-banner-hero-enter > .image-wrapper {
   animation: gpx-daily-banner-enter 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
   transform-origin: top center;
   will-change: opacity, transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gpx-daily-banner-hero > .image-wrapper {
+  .gpx-daily-banner-hero.gpx-daily-banner-hero-enter > .image-wrapper {
     animation: none !important;
     transform: none !important;
     will-change: auto;

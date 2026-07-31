@@ -35,11 +35,14 @@ export default class GpxDailyBannerPlugin extends Plugin {
     this.registerBannerMarkerHider();
 
     this.app.workspace.onLayoutReady(() => {
-      const handleVaultFileChange = (file: TAbstractFile) => {
-        void this.handleVaultFileChange(file);
+      const handleVaultFileCreate = (file: TAbstractFile) => {
+        void this.handleVaultFileChange(file, "create");
       };
-      this.registerEvent(this.app.vault.on("create", handleVaultFileChange));
-      this.registerEvent(this.app.vault.on("modify", handleVaultFileChange));
+      const handleVaultFileModify = (file: TAbstractFile) => {
+        void this.handleVaultFileChange(file, "modify");
+      };
+      this.registerEvent(this.app.vault.on("create", handleVaultFileCreate));
+      this.registerEvent(this.app.vault.on("modify", handleVaultFileModify));
 
       const startupRefresh = window.setTimeout(() => {
         void this.refreshTodayDailyDataOnStartup();
@@ -258,48 +261,59 @@ export default class GpxDailyBannerPlugin extends Plugin {
       scheduleBannerHeroAlignment();
     });
 
-    let pending = false;
-    const schedule = () => {
-      if (pending) return;
-      pending = true;
-      window.requestAnimationFrame(() => {
-        pending = false;
-        decorateBannerEmbeds(document.body);
-        hideLivePreviewBannerMarkers(document.body);
-        alignBannerHeroEmbeds();
-      });
+    const alignForViewportChange = () => {
+      scheduleBannerHeroAlignment();
     };
 
-    const observer = new MutationObserver(schedule);
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    const observer = new MutationObserver((mutations) => {
+      let bannerLayoutChanged = false;
+      for (const mutation of mutations) {
+        for (const addedNode of Array.from(mutation.addedNodes)) {
+          const container = mutationContainer(addedNode);
+          if (!container) continue;
+          bannerLayoutChanged = decorateBannerEmbeds(container) || bannerLayoutChanged;
+          hideLivePreviewBannerMarkers(container);
+          bannerLayoutChanged = containerTouchesBannerHero(container) || bannerLayoutChanged;
+        }
+      }
+      if (bannerLayoutChanged) scheduleBannerHeroAlignment();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
     this.register(() => observer.disconnect());
 
-    const viewportObserver = new ResizeObserver(schedule);
+    const viewportObserver = new ResizeObserver(alignForViewportChange);
     viewportObserver.observe(document.documentElement);
     this.register(() => viewportObserver.disconnect());
 
     const mobileLayout = window.matchMedia("(max-width: 600px)");
-    mobileLayout.addEventListener("change", schedule);
-    this.register(() => mobileLayout.removeEventListener("change", schedule));
+    mobileLayout.addEventListener("change", alignForViewportChange);
+    this.register(() => mobileLayout.removeEventListener("change", alignForViewportChange));
 
     const visualViewport = window.visualViewport;
     if (visualViewport) {
-      visualViewport.addEventListener("resize", schedule);
-      this.register(() => visualViewport.removeEventListener("resize", schedule));
+      visualViewport.addEventListener("resize", alignForViewportChange);
+      this.register(() => visualViewport.removeEventListener("resize", alignForViewportChange));
     }
 
-    this.registerEvent(this.app.workspace.on("layout-change", schedule));
-    this.registerDomEvent(window, "resize", schedule);
-    schedule();
+    this.registerEvent(this.app.workspace.on("layout-change", alignForViewportChange));
+    this.registerDomEvent(window, "resize", alignForViewportChange);
+
+    decorateBannerEmbeds(document.body);
+    hideLivePreviewBannerMarkers(document.body);
+    scheduleBannerHeroAlignment();
   }
 
-  private async handleVaultFileChange(file: TAbstractFile): Promise<void> {
+  private async handleVaultFileChange(file: TAbstractFile, eventType: "create" | "modify"): Promise<void> {
     if (isGpxFile(file)) {
       await this.manager.processGpxFile(file);
       return;
     }
     if (file instanceof TFile && file.extension === "md") {
-      await this.manager.retryPendingForNote(file.path);
+      // A pending track only needs the note's creation event. Listening to every
+      // Markdown modification means each keystroke/save performs needless work.
+      if (eventType === "create") {
+        await this.manager.retryPendingForNote(file.path);
+      }
       return;
     }
     if (this.isTodayDailyDataBridgeFile(file)) {
@@ -393,6 +407,10 @@ export default class GpxDailyBannerPlugin extends Plugin {
 }
 
 let bannerHeroAlignmentPending = false;
+const BANNER_VIEW_SELECTOR = ".markdown-preview-view, .markdown-source-view.mod-cm6";
+const BANNER_HERO_ENTRANCE_CLASS = "gpx-daily-banner-hero-enter";
+const BANNER_EMBED_CONTAINER_SELECTOR = ".image-embed, .internal-embed, .cm-embed-block";
+const bannerHeroEntranceState = new WeakMap<HTMLElement, { key: string; variants: Set<string> }>();
 
 function scheduleBannerHeroAlignment(): void {
   if (bannerHeroAlignmentPending) return;
@@ -423,11 +441,16 @@ function alignBannerHeroEmbeds(): void {
     const correctionX = viewRect.left - heroRect.left;
     const correctionY = viewRect.top - (heroRect.top + scrollTop);
 
-    hero.style.setProperty("--gpx-hero-shift-x", `${Math.round(appliedShiftX + correctionX)}px`);
-    hero.style.setProperty("--gpx-hero-shift-y", `${Math.round(appliedShiftY + correctionY)}px`);
-    hero.style.setProperty("--gpx-hero-width", `${Math.round(viewRect.width)}px`);
-    hero.style.setProperty("--gpx-hero-height", `${Math.round(viewRect.height)}px`);
+    setStylePropertyIfChanged(hero, "--gpx-hero-shift-x", `${Math.round(appliedShiftX + correctionX)}px`);
+    setStylePropertyIfChanged(hero, "--gpx-hero-shift-y", `${Math.round(appliedShiftY + correctionY)}px`);
+    setStylePropertyIfChanged(hero, "--gpx-hero-width", `${Math.round(viewRect.width)}px`);
+    setStylePropertyIfChanged(hero, "--gpx-hero-height", `${Math.round(viewRect.height)}px`);
   }
+}
+
+function setStylePropertyIfChanged(element: HTMLElement, property: string, value: string): void {
+  if (element.style.getPropertyValue(property) === value) return;
+  element.style.setProperty(property, value);
 }
 
 class ConfirmDeleteImageModal extends Modal {
@@ -470,23 +493,91 @@ class ConfirmDeleteImageModal extends Modal {
   }
 }
 
-function decorateBannerEmbeds(container: ParentNode): void {
-  const selector = '.image-embed[alt*="gpx-daily-banner"], .image-embed[src*="-gpx-hero-"], .image-embed:has(img[alt*="gpx-daily-banner"]), .image-embed:has(img[src*="-gpx-banner"]), .image-embed:has(img[src*="-gpx-hero-"]), .internal-embed[alt*="gpx-daily-banner"], .internal-embed[alt*="-gpx-banner"], .internal-embed[src*="-gpx-banner"], .internal-embed[src*="-gpx-hero-"], .internal-embed:has(img[alt*="gpx-daily-banner"]), .internal-embed:has(img[src*="-gpx-banner"]), .internal-embed:has(img[src*="-gpx-hero-"]), .cm-embed-block:has(img[alt*="gpx-daily-banner"]), .cm-embed-block:has(img[src*="-gpx-banner"]), .cm-embed-block:has(img[src*="-gpx-hero-"])';
-  const embeds: HTMLElement[] = [];
-  if (container instanceof HTMLElement && container.matches(selector)) {
-    embeds.push(container);
-  }
-  embeds.push(...Array.from(container.querySelectorAll<HTMLElement>(selector)));
-
-  for (const embed of Array.from(embeds)) {
+function decorateBannerEmbeds(container: ParentNode): boolean {
+  const embeds = collectBannerEmbeds(container);
+  let changed = false;
+  for (const embed of embeds) {
     if (embed.parentElement?.closest(".gpx-daily-banner-hero") || embed.querySelector(".gpx-daily-banner-hero")) continue;
-    embed.classList.add("gpx-daily-banner-hero");
-    const alt = embed.getAttribute("alt") ?? embed.querySelector("img")?.getAttribute("alt") ?? "";
-    const source = embed.getAttribute("src") ?? embed.querySelector("img")?.getAttribute("src") ?? "";
-    const marker = `${alt} ${source}`;
-    embed.classList.toggle("gpx-daily-banner-hero-mobile", marker.includes("hero-mobile"));
-    embed.classList.toggle("gpx-daily-banner-hero-desktop", marker.includes("hero-desktop"));
+    changed = addClassIfMissing(embed, "gpx-daily-banner-hero") || changed;
+    const marker = bannerEmbedMarker(embed);
+    const isMobile = marker.includes("hero-mobile");
+    const isDesktop = marker.includes("hero-desktop");
+    changed = toggleClassIfNeeded(embed, "gpx-daily-banner-hero-mobile", isMobile) || changed;
+    changed = toggleClassIfNeeded(embed, "gpx-daily-banner-hero-desktop", isDesktop) || changed;
+    applyHeroEntranceOnce(embed, marker, isMobile ? "mobile" : isDesktop ? "desktop" : "default");
   }
+  return changed;
+}
+
+function collectBannerEmbeds(container: ParentNode): HTMLElement[] {
+  const candidates = new Set<HTMLElement>();
+  if (container instanceof HTMLElement) {
+    if (container.matches(BANNER_EMBED_CONTAINER_SELECTOR)) candidates.add(container);
+    const ancestors: HTMLElement[] = [];
+    let closest = container.closest<HTMLElement>(BANNER_EMBED_CONTAINER_SELECTOR);
+    while (closest) {
+      ancestors.push(closest);
+      closest = closest.parentElement?.closest<HTMLElement>(BANNER_EMBED_CONTAINER_SELECTOR) ?? null;
+    }
+    for (const ancestor of ancestors.reverse()) candidates.add(ancestor);
+  }
+  for (const candidate of Array.from(container.querySelectorAll<HTMLElement>(BANNER_EMBED_CONTAINER_SELECTOR))) {
+    candidates.add(candidate);
+  }
+  return Array.from(candidates).filter(isBannerEmbed);
+}
+
+function isBannerEmbed(embed: HTMLElement): boolean {
+  const marker = bannerEmbedMarker(embed).toLowerCase();
+  return marker.includes("gpx-daily-banner")
+    || marker.includes("-gpx-banner")
+    || marker.includes("-gpx-hero-");
+}
+
+function bannerEmbedMarker(embed: HTMLElement): string {
+  const image = embed.querySelector("img");
+  const alt = embed.getAttribute("alt") ?? image?.getAttribute("alt") ?? "";
+  const source = embed.getAttribute("src") ?? image?.getAttribute("src") ?? "";
+  return `${alt} ${source}`;
+}
+
+function addClassIfMissing(element: HTMLElement, className: string): boolean {
+  if (element.classList.contains(className)) return false;
+  element.classList.add(className);
+  return true;
+}
+
+function toggleClassIfNeeded(element: HTMLElement, className: string, enabled: boolean): boolean {
+  if (element.classList.contains(className) === enabled) return false;
+  element.classList.toggle(className, enabled);
+  return true;
+}
+
+function applyHeroEntranceOnce(embed: HTMLElement, marker: string, variant: string): void {
+  const view = embed.closest<HTMLElement>(BANNER_VIEW_SELECTOR);
+  if (!view) return;
+  const key = marker
+    .replace(/-gpx-hero-(?:desktop|mobile)/gi, "-gpx-hero")
+    .replace(/\bhero-(?:desktop|mobile)\b/gi, "hero");
+  const previous = bannerHeroEntranceState.get(view);
+  const state = previous?.key === key ? previous : { key, variants: new Set<string>() };
+  if (!state.variants.has(variant)) {
+    embed.classList.add(BANNER_HERO_ENTRANCE_CLASS);
+    state.variants.add(variant);
+  }
+  bannerHeroEntranceState.set(view, state);
+}
+
+function mutationContainer(node: Node): ParentNode | null {
+  if (node instanceof HTMLElement) return node;
+  return node.parentElement;
+}
+
+function containerTouchesBannerHero(container: ParentNode): boolean {
+  if (!(container instanceof HTMLElement)) return false;
+  return container.classList.contains("gpx-daily-banner-hero")
+    || Boolean(container.closest(".gpx-daily-banner-hero"))
+    || Boolean(container.querySelector(".gpx-daily-banner-hero"));
 }
 
 function hideBannerMarkers(container: HTMLElement): void {
@@ -522,9 +613,20 @@ function removeEmptyMarkerWrapper(element: HTMLElement | null): void {
 }
 
 function hideLivePreviewBannerMarkers(container: ParentNode): void {
-  const lines = container.querySelectorAll<HTMLElement>(".markdown-source-view.mod-cm6.is-live-preview .cm-line");
-  for (const line of Array.from(lines)) {
+  const lineSelector = ".markdown-source-view.mod-cm6.is-live-preview .cm-line";
+  const lines = new Set<HTMLElement>();
+  if (container instanceof HTMLElement) {
+    if (container.matches(lineSelector)) lines.add(container);
+    const closestLine = container.closest<HTMLElement>(".cm-line");
+    if (closestLine?.closest(".markdown-source-view.mod-cm6.is-live-preview")) {
+      lines.add(closestLine);
+    }
+  }
+  for (const line of Array.from(container.querySelectorAll<HTMLElement>(lineSelector))) {
+    lines.add(line);
+  }
+  for (const line of lines) {
     const text = line.textContent?.trim();
-    line.classList.toggle("gpx-daily-banner-marker-line", text === BANNER_START || text === BANNER_END);
+    toggleClassIfNeeded(line, "gpx-daily-banner-marker-line", text === BANNER_START || text === BANNER_END);
   }
 }
