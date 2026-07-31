@@ -1,10 +1,3 @@
-:root {
-  --gpx-banner-height: 220px;
-  --gpx-banner-mobile-height: 180px;
-  --gpx-banner-radius: 12px;
-  --gpx-banner-aspect-ratio: 8 / 3;
-}
-
 .gpx-daily-banner-settings-intro {
   color: var(--text-muted);
   margin: -4px 0 18px;
@@ -133,30 +126,30 @@
   box-sizing: border-box;
   align-items: flex-start;
   background: var(--background-primary);
+  border-radius: 0 !important;
+  contain: paint;
   display: flex !important;
   height: 100vh;
-  height: var(--gpx-hero-height, 100svh);
+  height: 100svh;
   justify-content: center;
   margin: 0 !important;
-  margin-left: var(--gpx-hero-shift-x, 0px) !important;
+  margin-left: 0 !important;
   margin-right: 0 !important;
-  margin-top: var(--gpx-hero-shift-y, 0px) !important;
+  margin-top: 0 !important;
   max-width: none !important;
   min-height: 100vh;
-  min-height: var(--gpx-hero-height, 100svh);
+  min-height: 100svh;
   overflow: hidden;
   padding: 0 !important;
   position: relative;
-  width: var(--gpx-hero-width, 100vw) !important;
+  width: 100% !important;
   isolation: isolate;
 }
 
 /* Obsidian wraps image embeds in a paragraph in Reading view. Remove that
  * wrapper's paragraph rhythm, otherwise the note title appears separated from
  * the Hero by the theme's normal paragraph margin. */
-.markdown-preview-view .markdown-preview-section > p:has(.gpx-daily-banner-hero),
-.markdown-preview-view .markdown-preview-section > div:has(> .gpx-daily-banner-hero),
-.markdown-source-view.mod-cm6 .cm-embed-block:has(.gpx-daily-banner-hero) {
+.gpx-daily-banner-hero-container {
   box-sizing: border-box;
   line-height: 0 !important;
   margin: 0 !important;
@@ -165,7 +158,7 @@
   width: 100% !important;
 }
 
-.markdown-preview-view:has(.gpx-daily-banner-hero) .markdown-preview-section {
+.markdown-preview-view.gpx-daily-banner-view .markdown-preview-section {
   margin: 0 !important;
   max-width: none !important;
   padding-top: 0 !important;
@@ -176,44 +169,35 @@
 /* The Bureau theme keeps a wide left dossier rail inside the reading surface.
  * Once a Hero exists, let the reading surface itself become the full-width
  * stage, then put the ordinary note children back on the normal line width. */
-.markdown-preview-view:has(.gpx-daily-banner-hero) {
+.markdown-preview-view.gpx-daily-banner-view {
+  animation: none !important;
   padding: 0 !important;
+  transform: none !important;
+  transition: none !important;
 }
 
-.markdown-preview-view:has(.gpx-daily-banner-hero) .gpx-daily-banner-hero {
-  margin-left: var(--gpx-hero-shift-x, 0px) !important;
+.markdown-preview-view.gpx-daily-banner-view .gpx-daily-banner-hero {
   margin-right: 0 !important;
-  width: var(--gpx-hero-width, 100vw) !important;
 }
 
-.markdown-preview-view:has(.gpx-daily-banner-hero) .markdown-preview-section > :not(:has(.gpx-daily-banner-hero)) {
+.markdown-preview-view.gpx-daily-banner-view .markdown-preview-section > :not(.gpx-daily-banner-hero-container) {
   margin-inline: auto !important;
   max-width: var(--file-line-width, 800px) !important;
 }
 
-.markdown-source-view.mod-cm6:has(.gpx-daily-banner-hero) .cm-scroller,
-.markdown-source-view.mod-cm6:has(.gpx-daily-banner-hero) .cm-content {
+.markdown-source-view.mod-cm6.gpx-daily-banner-view .cm-scroller,
+.markdown-source-view.mod-cm6.gpx-daily-banner-view .cm-content {
   padding-inline: 0 !important;
 }
 
-.markdown-source-view.mod-cm6:has(.gpx-daily-banner-hero) .cm-scroller {
+.markdown-source-view.mod-cm6.gpx-daily-banner-view .cm-scroller {
   overflow-x: hidden !important;
 }
 
-/*
- * Live Preview renders media embeds as direct children of .cm-content.
- * Obsidian core applies `margin: 0 !important` to every direct child, which
- * otherwise wins over the generic Hero rule and leaves the readable-line-width
- * gutter visible. This selector is intentionally more specific than the core
- * rule so the measured viewport offsets are actually applied.
- */
-.markdown-source-view.mod-cm6 .cm-content > .gpx-daily-banner-hero {
-  height: var(--gpx-hero-height, 100svh) !important;
-  margin-left: var(--gpx-hero-shift-x, 0px) !important;
-  margin-right: 0 !important;
-  margin-top: var(--gpx-hero-shift-y, 0px) !important;
-  min-height: var(--gpx-hero-height, 100svh) !important;
-  width: var(--gpx-hero-width, 100vw) !important;
+.markdown-source-view.mod-cm6.gpx-daily-banner-view {
+  animation: none !important;
+  transform: none !important;
+  transition: none !important;
 }
 
 .gpx-daily-banner-hero > .edit-block-button {
@@ -252,20 +236,7 @@
   z-index: 2;
 }
 
-.gpx-daily-banner-hero img,
-img[alt="gpx-daily-banner"],
-img[alt*="gpx-daily-banner"],
-img[src*="-gpx-hero-"],
-img[src*="-gpx-banner"],
-.image-embed[alt="gpx-daily-banner"] img,
-.image-embed[alt*="gpx-daily-banner"] img,
-.internal-embed[alt*="gpx-daily-banner"] img,
-.internal-embed[alt*="-gpx-banner"] img,
-.internal-embed[src*="-gpx-banner"] img,
-.markdown-source-view.mod-cm6 img[alt*="gpx-daily-banner"],
-.markdown-source-view.mod-cm6 img[alt*="-gpx-banner"],
-.markdown-source-view.mod-cm6 .cm-embed-block img[alt*="gpx-daily-banner"],
-.markdown-source-view.mod-cm6 .cm-embed-block img[alt*="-gpx-banner"] {
+.gpx-daily-banner-hero img {
   background: transparent;
   border-radius: 0;
   display: block;
@@ -281,8 +252,8 @@ img[src*="-gpx-banner"],
 
 @keyframes gpx-daily-banner-enter {
   from {
-    opacity: 1;
-    transform: scale(1.015) translateY(8px);
+    opacity: 0.96;
+    transform: translateY(4px);
   }
 
   to {
@@ -291,39 +262,21 @@ img[src*="-gpx-banner"],
   }
 }
 
-.gpx-daily-banner-hero.gpx-daily-banner-hero-enter > .image-wrapper {
-  animation: gpx-daily-banner-enter 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+.gpx-daily-banner-hero.gpx-daily-banner-hero-enter > .image-wrapper,
+.gpx-daily-banner-hero.gpx-daily-banner-hero-enter > img {
+  animation: gpx-daily-banner-enter 180ms cubic-bezier(0.23, 1, 0.32, 1) both;
   transform-origin: top center;
-  will-change: opacity, transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gpx-daily-banner-hero.gpx-daily-banner-hero-enter > .image-wrapper {
-    animation: none !important;
+  .gpx-daily-banner-hero.gpx-daily-banner-hero-enter > .image-wrapper,
+  .gpx-daily-banner-hero.gpx-daily-banner-hero-enter > img {
+    animation-duration: 120ms;
     transform: none !important;
-    will-change: auto;
   }
 }
 
-.markdown-preview-view .image-embed[alt*="gpx-daily-banner"],
-.markdown-preview-view .internal-embed[alt*="gpx-daily-banner"],
-.markdown-preview-view .internal-embed[alt*="-gpx-banner"],
-.markdown-preview-view .internal-embed[src*="-gpx-banner"],
-.markdown-preview-view .internal-embed[src*="-gpx-hero-"],
-.markdown-source-view.mod-cm6 .image-embed[alt*="gpx-daily-banner"],
-.markdown-source-view.mod-cm6 .internal-embed[alt*="gpx-daily-banner"],
-.markdown-source-view.mod-cm6 .internal-embed[alt*="-gpx-banner"],
-.markdown-source-view.mod-cm6 .internal-embed[src*="-gpx-banner"],
-.markdown-source-view.mod-cm6 .internal-embed[src*="-gpx-hero-"] {
-  border-radius: 0;
-}
-
 .markdown-source-view.mod-cm6.is-live-preview .cm-line.gpx-daily-banner-marker-line {
-  display: none !important;
-}
-
-.markdown-source-view.mod-cm6.is-live-preview .cm-line:has(+ .internal-embed[alt*="gpx-daily-banner"]),
-.markdown-source-view.mod-cm6.is-live-preview .internal-embed[alt*="gpx-daily-banner"] + .cm-line {
   display: none !important;
 }
 
@@ -336,18 +289,6 @@ img[src*="-gpx-banner"],
     display: flex !important;
   }
 
-  img[alt="gpx-daily-banner"],
-  img[alt*="gpx-daily-banner"],
-  .image-embed[alt="gpx-daily-banner"] img,
-  .image-embed[alt*="gpx-daily-banner"] img,
-  .internal-embed[alt*="gpx-daily-banner"] img,
-  .internal-embed[alt*="-gpx-banner"] img,
-  .internal-embed[src*="-gpx-banner"] img,
-  .internal-embed[src*="-gpx-hero-"] img,
-  .markdown-source-view.mod-cm6 img[alt*="gpx-daily-banner"],
-  .markdown-source-view.mod-cm6 img[alt*="-gpx-banner"] {
-    height: 100% !important;
-  }
 }
 
 .gpx-daily-banner-confirm {
@@ -422,16 +363,13 @@ img[src*="-gpx-banner"],
 .gpx-preview-banner-image {
   width: 100%;
   aspect-ratio: 20 / 7;
+  background: var(--background-secondary);
   border: 1px solid var(--gpx-preview-border);
   border-radius: 10px;
   display: block;
-  margin-bottom: 14px;
-}
-
-.gpx-preview-banner-image {
   height: auto;
+  margin-bottom: 14px;
   object-fit: contain;
-  background: var(--background-secondary);
 }
 
 .gpx-preview-missing-banner {

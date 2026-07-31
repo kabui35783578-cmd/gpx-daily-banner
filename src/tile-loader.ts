@@ -1,4 +1,4 @@
-import { Platform, requestUrl } from "obsidian";
+import { requestUrl } from "obsidian";
 
 export async function loadTileImage(url: string): Promise<HTMLImageElement> {
   let lastError: unknown;
@@ -117,47 +117,6 @@ function alternateTileHosts(hostname: string): string[] {
   }
 
   return [];
-}
-
-export async function loadPreviewTileImage(url: string): Promise<HTMLImageElement> {
-  if (Platform.isMobile) {
-    try {
-      return await loadDirectTileImage(url, true);
-    } catch {
-      try {
-        return await loadDirectTileImage(url, false);
-      } catch {
-        return await loadTileImage(url);
-      }
-    }
-  }
-
-  try {
-    return await loadTileImage(url);
-  } catch {
-    try {
-      return await loadDirectTileImage(url, true);
-    } catch {
-      return await loadDirectTileImage(url, false);
-    }
-  }
-}
-
-function loadDirectTileImage(url: string, useCrossOrigin: boolean): Promise<HTMLImageElement> {
-  return withTimeout(
-    new Promise<HTMLImageElement>((resolve, reject) => {
-      const image = new Image();
-      image.decoding = "async";
-      if (useCrossOrigin) {
-        image.crossOrigin = "anonymous";
-      }
-      image.onload = () => resolve(image);
-      image.onerror = () => reject(new Error("地图瓦片图片直连加载失败。"));
-      image.src = url;
-    }),
-    8000,
-    "地图瓦片图片直连加载超时。"
-  );
 }
 
 function decodeImage(image: HTMLImageElement): Promise<void> {

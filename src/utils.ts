@@ -88,12 +88,6 @@ export function formatDuration(durationMs?: number): string | undefined {
   return rest ? `${hours} 小时 ${rest} 分钟` : `${hours} 小时`;
 }
 
-export function replaceCssVariables(settings: GpxDailyBannerSettings): void {
-  document.documentElement.style.setProperty("--gpx-banner-height", `${settings.desktopBannerHeight}px`);
-  document.documentElement.style.setProperty("--gpx-banner-mobile-height", `${settings.mobileBannerHeight}px`);
-  document.documentElement.style.setProperty("--gpx-banner-radius", `${settings.bannerRadius}px`);
-}
-
 export function debug(settings: GpxDailyBannerSettings, ...args: unknown[]): void {
   if (settings.debugLogging) {
     console.log("[GPX Daily Banner]", ...args);
@@ -115,8 +109,4 @@ export async function waitForStableFile(vault: Vault, file: TFile, maxRetries = 
   }
   const candidate = vault.getAbstractFileByPath(file.path);
   return isTFile(candidate) && candidate.stat.size > 0 ? candidate : latest;
-}
-
-export function uniqueArray<T>(items: T[]): T[] {
-  return Array.from(new Set(items));
 }

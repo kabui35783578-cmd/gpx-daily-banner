@@ -55,10 +55,6 @@ export async function removeBannerBlock(vault: Vault, note: TFile): Promise<bool
   return removed;
 }
 
-export function extractBannerImagePath(content: string): string | undefined {
-  return extractBannerImagePaths(content)[0];
-}
-
 export function extractBannerImagePaths(content: string): string[] {
   const blockPattern = new RegExp(`${escapeRegex(BANNER_START)}[\\s\\S]*?${escapeRegex(BANNER_END)}`);
   const block = content.match(blockPattern)?.[0] ?? "";

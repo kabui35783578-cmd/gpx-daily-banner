@@ -1,7 +1,7 @@
 import { App, Notice, PluginSettingTab, Setting, normalizePath } from "obsidian";
 import type GpxDailyBannerPlugin from "./main";
 import { AMAP_CLEAN_TILE_URL, DEFAULT_MAP_TILE_PRESET_ID, getMapTilePreset, MAP_TILE_PRESETS } from "./map-presets";
-import { DailyDataSourceMode, GpxDailyBannerSettings, MapCoordinateSystem, MapTilePresetId, SameDayMode, TimezoneMode } from "./types";
+import { GpxDailyBannerSettings, MapCoordinateSystem, MapTilePresetId, SameDayMode, TimezoneMode } from "./types";
 import { cleanFolderPath, joinPath } from "./utils";
 import { DEFAULT_DAILY_DATA_GAP_MINUTES } from "./daily-data-parser";
 import { dailyDataRawFileName } from "./daily-data-date";
@@ -24,9 +24,6 @@ export const DEFAULT_SETTINGS: GpxDailyBannerSettings = {
   bannerFolder: "Attachments/GPX Banners",
   imageWidth: 1600,
   imageHeight: 600,
-  desktopBannerHeight: 220,
-  mobileBannerHeight: 180,
-  bannerRadius: 12,
   mapTilePreset: DEFAULT_MAP_TILE_PRESET_ID,
   tileUrlTemplate: AMAP_CLEAN_TILE_URL,
   tileAttribution: "© 高德地图",
@@ -227,22 +224,6 @@ export class GpxDailyBannerSettingTab extends PluginSettingTab {
       this.plugin.settings.imageHeight = value;
       await this.plugin.saveSettings();
     });
-    numberSetting(rendering, "桌面端封面高度", this.plugin.settings.desktopBannerHeight, 120, 600, async (value) => {
-      this.plugin.settings.desktopBannerHeight = value;
-      await this.plugin.saveSettings();
-      this.plugin.applyStyleVariables();
-    });
-    numberSetting(rendering, "手机端封面高度", this.plugin.settings.mobileBannerHeight, 100, 500, async (value) => {
-      this.plugin.settings.mobileBannerHeight = value;
-      await this.plugin.saveSettings();
-      this.plugin.applyStyleVariables();
-    });
-    numberSetting(rendering, "封面圆角", this.plugin.settings.bannerRadius, 0, 40, async (value) => {
-      this.plugin.settings.bannerRadius = value;
-      await this.plugin.saveSettings();
-      this.plugin.applyStyleVariables();
-    });
-
     new Setting(rendering)
       .setName("地图背景")
       .setDesc("默认使用高德清爽标注底图；选定源失败时会依次尝试国内备用源和 CARTO，最后仍可生成离线轨迹图。")

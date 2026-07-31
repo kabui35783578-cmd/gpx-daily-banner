@@ -69,9 +69,6 @@ export interface GpxDailyBannerSettings {
   bannerFolder: string;
   imageWidth: number;
   imageHeight: number;
-  desktopBannerHeight: number;
-  mobileBannerHeight: number;
-  bannerRadius: number;
   mapTilePreset: MapTilePresetId;
   tileUrlTemplate: string;
   tileAttribution: string;
@@ -109,9 +106,4 @@ export interface RenderInput {
   dateKey: string;
   stats: RenderStats;
   viewportPadding?: number;
-}
-
-export interface TileLoadResult {
-  image: HTMLImageElement;
-  url: string;
 }
