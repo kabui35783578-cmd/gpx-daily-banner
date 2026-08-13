@@ -1,6 +1,7 @@
 import { Notice, TFile, Vault } from "obsidian";
 import { parseDailyData } from "./daily-data-parser";
 import { DailyDataSource, readDailyDataForDate } from "./daily-data-source";
+import { shouldBlockAutomaticGpxForDailyData } from "./daily-data-conflict";
 import { parseGpx, getMetadataTime } from "./gpx-parser";
 import { renderMapBanner } from "./map-renderer";
 import { renderOfflineBanner } from "./offline-renderer";
@@ -98,7 +99,7 @@ export class BannerManager {
       return;
     }
 
-    if (!options.force && await this.hasDailyDataForDate(dateKey)) {
+    if (!options.force && await this.hasGeneratedDailyDataForDate(dateKey)) {
       new Notice(`${dateKey} 已有一生足迹轨迹，自动处理时保留 GPX 文件但不覆盖当天封面；如需使用 GPX，请执行“使用当前 GPX 覆盖日记封面”。`);
       return;
     }
@@ -425,8 +426,11 @@ export class BannerManager {
     return tracks.length ? tracks : currentTracks;
   }
 
-  private async hasDailyDataForDate(dateKey: string): Promise<boolean> {
-    return Boolean((await readDailyDataForDate(this.vault, this.getSettings(), dateKey)).source);
+  private async hasGeneratedDailyDataForDate(dateKey: string): Promise<boolean> {
+    const record = this.getData().dailyDataRecords[dateKey];
+    if (record?.status !== "processed") return false;
+    const hasCompleteBanner = !(await this.noteNeedsHeroImages(dateKey));
+    return shouldBlockAutomaticGpxForDailyData(record, hasCompleteBanner);
   }
 
   private isUnchangedProcessed(file: TFile): boolean {

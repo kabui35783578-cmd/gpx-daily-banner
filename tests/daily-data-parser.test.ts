@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { calculateDistanceMeters, calculateDurationMs } from "../src/track-metrics";
 import { DEFAULT_DAILY_DATA_GAP_MINUTES, parseDailyData } from "../src/daily-data-parser";
 import { dailyDataRawFileName, unixDayStartSeconds } from "../src/daily-data-date";
+import { shouldBlockAutomaticGpxForDailyData } from "../src/daily-data-conflict";
 import { readCoreDailyNotesSettings, shouldFollowCoreDailyNotesSettings } from "../src/daily-notes-config";
 import { convertPointForMap, tileUrl } from "../src/coordinate";
 import { AMAP_CLEAN_TILE_URL, AMAP_MINIMAL_TILE_URL, AMAP_STANDARD_TILE_URL, DEFAULT_MAP_TILE_PRESET_ID, MAP_TILE_PRESETS } from "../src/map-presets";
@@ -44,6 +45,12 @@ assert.equal(unixDayStartSeconds("2026-07-23", timezoneSettings), 1_784_736_000)
 assert.equal(unixDayStartSeconds("2026-07-24", timezoneSettings), 1_784_822_400);
 assert.equal(dailyDataRawFileName("2026-07-24", timezoneSettings), "1784822400_raw");
 assert.equal(1_784_822_400 - 1_784_736_000, 86_400);
+
+assert.equal(shouldBlockAutomaticGpxForDailyData(undefined, false), false);
+assert.equal(shouldBlockAutomaticGpxForDailyData({ status: "failed" }, true), false);
+assert.equal(shouldBlockAutomaticGpxForDailyData({ status: "pending-note" }, true), false);
+assert.equal(shouldBlockAutomaticGpxForDailyData({ status: "processed" }, false), false);
+assert.equal(shouldBlockAutomaticGpxForDailyData({ status: "processed" }, true), true);
 
 const coreDailyNotes = readCoreDailyNotesSettings({
   internalPlugins: {
