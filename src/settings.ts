@@ -41,7 +41,7 @@ export const DEFAULT_SETTINGS: GpxDailyBannerSettings = {
   showDuration: true,
   timezoneMode: "local",
   customTimezoneOffsetMinutes: 480,
-  sameDayMode: "merge",
+  sameDayMode: "replace",
   onlineMapEnabled: true,
   offlineFallback: true,
   archiveAfterSuccess: false,

@@ -1,7 +1,6 @@
 import { Notice, TFile, Vault } from "obsidian";
 import { parseDailyData } from "./daily-data-parser";
 import { DailyDataSource, readDailyDataForDate } from "./daily-data-source";
-import { shouldBlockAutomaticGpxForDailyData } from "./daily-data-conflict";
 import { parseGpx, getMetadataTime } from "./gpx-parser";
 import { renderMapBanner } from "./map-renderer";
 import { renderOfflineBanner } from "./offline-renderer";
@@ -99,11 +98,6 @@ export class BannerManager {
       return;
     }
 
-    if (!options.force && await this.hasGeneratedDailyDataForDate(dateKey)) {
-      new Notice(`${dateKey} 已有一生足迹轨迹，自动处理时保留 GPX 文件但不覆盖当天封面；如需使用 GPX，请执行“使用当前 GPX 覆盖日记封面”。`);
-      return;
-    }
-
     await this.queue.runForFile(stableFile.path, dateKey, async () => {
       await this.processTrackJob({
         kind: "gpx",
@@ -113,7 +107,7 @@ export class BannerManager {
         sourceModifiedTime: stableFile.stat.mtime,
         dateKey,
         tracks,
-        force: options.force === true,
+        force: true,
         file: stableFile
       });
     });
@@ -149,6 +143,11 @@ export class BannerManager {
     const needsHeroMigration = previous?.status === "processed" && await this.noteNeedsHeroImages(dateKey);
     if (!options.force && previous?.fingerprint === source.fingerprint && previous.status === "processed" && !needsHeroMigration) {
       debug(settings, "daily data unchanged", dateKey, source.path);
+      return true;
+    }
+
+    if (!options.force && this.hasProcessedGpxForDate(dateKey)) {
+      debug(settings, "daily data skip: preserved manual GPX banner for date", dateKey);
       return true;
     }
 
@@ -376,9 +375,9 @@ export class BannerManager {
     if (job.kind === "daily-data") {
       new Notice(job.force ? "今天的一生足迹轨迹已重新生成。" : "今天的一生足迹轨迹已生成。");
     } else if (sourceDeleted) {
-      new Notice("GPX 轨迹封面已生成，原始 GPX 已删除。");
+      new Notice(`已使用 GPX 轨迹覆盖 ${job.dateKey} 的日记封面，原始 GPX 已删除。`);
     } else {
-      new Notice("GPX 轨迹封面已生成。");
+      new Notice(`已使用 GPX 轨迹覆盖 ${job.dateKey} 的日记封面。`);
     }
   }
 
@@ -426,11 +425,10 @@ export class BannerManager {
     return tracks.length ? tracks : currentTracks;
   }
 
-  private async hasGeneratedDailyDataForDate(dateKey: string): Promise<boolean> {
-    const record = this.getData().dailyDataRecords[dateKey];
-    if (record?.status !== "processed") return false;
-    const hasCompleteBanner = !(await this.noteNeedsHeroImages(dateKey));
-    return shouldBlockAutomaticGpxForDailyData(record, hasCompleteBanner);
+  private hasProcessedGpxForDate(dateKey: string): boolean {
+    return Object.values(this.getData().records).some(
+      (record) => record.trackDate === dateKey && record.status === "processed"
+    );
   }
 
   private isUnchangedProcessed(file: TFile): boolean {
