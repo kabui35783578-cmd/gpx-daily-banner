@@ -156,22 +156,15 @@
   max-width: none !important;
   padding: 0 !important;
   width: 100% !important;
+  overflow: visible !important;
 }
 
 .markdown-preview-view.gpx-daily-banner-view .markdown-preview-section {
-  margin: 0 !important;
-  max-width: none !important;
   padding-top: 0 !important;
-  padding-inline: 0 !important;
-  width: 100% !important;
 }
 
-/* The Bureau theme keeps a wide left dossier rail inside the reading surface.
- * Once a Hero exists, let the reading surface itself become the full-width
- * stage, then put the ordinary note children back on the normal line width. */
 .markdown-preview-view.gpx-daily-banner-view {
   animation: none !important;
-  padding: 0 !important;
   transform: none !important;
   transition: none !important;
 }
@@ -181,13 +174,7 @@
 }
 
 .markdown-preview-view.gpx-daily-banner-view .markdown-preview-section > :not(.gpx-daily-banner-hero-container) {
-  margin-inline: auto !important;
-  max-width: var(--file-line-width, 800px) !important;
-}
-
-.markdown-source-view.mod-cm6.gpx-daily-banner-view .cm-scroller,
-.markdown-source-view.mod-cm6.gpx-daily-banner-view .cm-content {
-  padding-inline: 0 !important;
+  max-width: var(--file-line-width, 800px);
 }
 
 .markdown-source-view.mod-cm6.gpx-daily-banner-view .cm-scroller {
@@ -276,7 +263,7 @@
   }
 }
 
-.markdown-source-view.mod-cm6.is-live-preview .cm-line.gpx-daily-banner-marker-line {
+.markdown-source-view.mod-cm6 .cm-line.gpx-daily-banner-marker-line {
   display: none !important;
 }
 
@@ -289,6 +276,29 @@
     display: flex !important;
   }
 
+  .markdown-source-view.mod-cm6.gpx-daily-banner-view .cm-content {
+    padding-inline: var(--file-margins, 16px);
+  }
+
+  .markdown-preview-view.gpx-daily-banner-view .markdown-preview-section {
+    padding-inline: var(--file-margins, 16px);
+  }
+}
+
+.is-phone .gpx-daily-banner-hero-desktop {
+  display: none !important;
+}
+
+.is-phone .gpx-daily-banner-hero-mobile {
+  display: flex !important;
+}
+
+.is-mobile .markdown-source-view.mod-cm6.gpx-daily-banner-view .cm-content {
+  padding-inline: var(--file-margins, 16px);
+}
+
+.is-mobile .markdown-preview-view.gpx-daily-banner-view .markdown-preview-section {
+  padding-inline: var(--file-margins, 16px);
 }
 
 .gpx-daily-banner-confirm {

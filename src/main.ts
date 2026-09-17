@@ -286,6 +286,7 @@ export default class GpxDailyBannerPlugin extends Plugin {
     });
 
     this.registerMarkdownPostProcessor((element) => {
+      hideBannerMarkersInPreview(element);
       if (decorateBannerEmbeds(element, mobileLayout.matches)) {
         alignBannerHeroEmbeds();
         scheduleBannerHeroAlignment();
@@ -827,22 +828,59 @@ function containerTouchesBannerHero(container: ParentNode): boolean {
     || Boolean(container.querySelector(".gpx-daily-banner-hero"));
 }
 
+function cleanMarkerText(text: string | null | undefined): string {
+  if (!text) return "";
+  return text.replace(/[\u200b-\u200d\uFEFF\u00A0]/g, " ").trim();
+}
+
+function isBannerMarkerText(text: string | null | undefined): boolean {
+  const cleaned = cleanMarkerText(text);
+  return cleaned === BANNER_START || cleaned === BANNER_END;
+}
+
+function hideBannerMarkersInPreview(container: HTMLElement): void {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_TEXT);
+  const nodesToRemove: Node[] = [];
+  let node = walker.nextNode();
+  while (node) {
+    const content = node.nodeValue ?? "";
+    if (content.includes("gpx-daily-banner:")) {
+      nodesToRemove.push(node);
+    }
+    node = walker.nextNode();
+  }
+  for (const n of nodesToRemove) {
+    const parent = n.parentElement;
+    n.parentNode?.removeChild(n);
+    if (
+      parent &&
+      parent.matches("p, div") &&
+      cleanMarkerText(parent.textContent) === "" &&
+      parent.querySelectorAll("img, canvas, svg, video, audio, iframe").length === 0
+    ) {
+      parent.remove();
+    }
+  }
+}
+
 function hideLivePreviewBannerMarkers(container: ParentNode): void {
-  const lineSelector = ".markdown-source-view.mod-cm6.is-live-preview .cm-line";
   const lines = new Set<HTMLElement>();
   if (container instanceof HTMLElement) {
-    if (container.matches(lineSelector)) lines.add(container);
+    if (container.classList.contains("cm-line")) {
+      lines.add(container);
+    }
     const closestLine = container.closest<HTMLElement>(".cm-line");
-    if (closestLine?.closest(".markdown-source-view.mod-cm6.is-live-preview")) {
+    if (closestLine) {
       lines.add(closestLine);
     }
   }
-  for (const line of Array.from(container.querySelectorAll<HTMLElement>(lineSelector))) {
+  for (const line of Array.from(container.querySelectorAll<HTMLElement>(".cm-line"))) {
     lines.add(line);
   }
   for (const line of lines) {
-    const text = line.textContent?.trim();
-    if (!line.classList.contains("gpx-daily-banner-marker-line") && !text?.includes("gpx-daily-banner:")) continue;
-    toggleClassIfNeeded(line, "gpx-daily-banner-marker-line", text === BANNER_START || text === BANNER_END);
+    const rawText = line.textContent ?? "";
+    if (!line.classList.contains("gpx-daily-banner-marker-line") && !rawText.includes("gpx-daily-banner:")) continue;
+    toggleClassIfNeeded(line, "gpx-daily-banner-marker-line", isBannerMarkerText(rawText));
   }
 }
+
