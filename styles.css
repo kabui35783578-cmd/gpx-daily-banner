@@ -1,77 +1,168 @@
 .gpx-daily-banner-settings-intro {
   color: var(--text-muted);
-  margin: -4px 0 18px;
+  font-size: var(--font-ui-smaller);
+  margin: -4px 0 14px;
   max-width: 760px;
 }
 
-.gpx-daily-banner-setup {
+.gpx-daily-banner-status-card {
   background: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
   border-radius: 12px;
-  margin: 12px 0 20px;
-  padding: 16px;
+  margin: 10px 0 18px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
-.gpx-daily-banner-setup h2,
-.gpx-daily-banner-settings-section h2 {
-  margin: 0 0 6px;
+.gpx-daily-banner-status-header {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.gpx-daily-banner-setup p,
-.gpx-daily-banner-settings-help {
-  color: var(--text-muted);
-  line-height: 1.55;
-}
-
-.gpx-daily-banner-setup ol {
-  margin: 10px 0 14px;
-  padding-left: 22px;
-}
-
-.gpx-daily-banner-setup-status {
-  align-items: flex-start;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 8px;
+.gpx-daily-banner-status-title {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  margin: 12px 0;
-  padding: 10px 12px;
+  gap: 4px;
+  min-width: 220px;
 }
 
-.gpx-daily-banner-setup-status span {
+.gpx-daily-banner-status-row {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  font-size: var(--font-ui-medium);
+}
+
+.gpx-status-indicator {
+  border-radius: 999px;
+  display: inline-block;
+  height: 8px;
+  width: 8px;
+  flex-shrink: 0;
+}
+
+.gpx-status-indicator.is-ready {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
+}
+
+.gpx-status-indicator.is-waiting {
+  background: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+}
+
+.gpx-daily-banner-status-sub {
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   overflow-wrap: anywhere;
 }
 
-.gpx-daily-banner-setup-status.is-ready {
-  background: rgba(34, 197, 94, 0.1);
-  border-color: rgba(34, 197, 94, 0.35);
+.gpx-daily-banner-status-sub.is-warning {
+  color: var(--text-warning);
 }
 
-.gpx-daily-banner-setup-status.is-missing {
-  background: rgba(245, 158, 11, 0.1);
-  border-color: rgba(245, 158, 11, 0.35);
-}
-
-.gpx-daily-banner-setup-actions {
+.gpx-daily-banner-status-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
+.gpx-daily-banner-guide-panel {
+  border-top: 1px solid var(--background-modifier-border);
+  line-height: 1.6;
+  margin-top: 12px;
+  padding-top: 12px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.gpx-daily-banner-tips-card {
+  align-items: center;
+  background: color-mix(in srgb, var(--interactive-accent), transparent 93%);
+  border: 1px solid color-mix(in srgb, var(--interactive-accent), transparent 75%);
+  border-radius: 8px;
+  color: var(--text-normal);
+  display: flex;
+  font-size: var(--font-ui-smaller);
+  line-height: 1.5;
+  margin: 12px 0 16px;
+  padding: 10px 14px;
+}
+
 .gpx-daily-banner-settings-section {
-  margin: 20px 0;
+  margin: 22px 0;
+}
+
+.gpx-daily-banner-settings-section > h3 {
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-medium);
+  margin: 0 0 6px;
+  padding-bottom: 6px;
 }
 
 .gpx-daily-banner-settings-section > .gpx-daily-banner-settings-help {
-  margin-top: 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin: 0 0 10px;
+}
+
+.gpx-daily-banner-quick-colors {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  margin: -6px 0 12px 14px;
+  padding: 2px 0;
+}
+
+.gpx-daily-banner-color-dot {
+  border-radius: 999px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  height: 22px;
+  width: 22px;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: transform 0.15s ease, outline-color 0.15s ease;
+}
+
+.gpx-daily-banner-color-dot:hover {
+  transform: scale(1.15);
+}
+
+.gpx-daily-banner-color-dot.is-active {
+  outline-color: var(--interactive-accent);
+  transform: scale(1.15);
+}
+
+.gpx-daily-banner-badge-group {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  margin: 14px 0;
+  padding: 10px 14px;
+}
+
+.gpx-daily-banner-badge-group > h4 {
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  margin: 2px 0 8px;
+}
+
+.gpx-daily-banner-badge-group > .setting-item {
+  border-top: 1px solid color-mix(in srgb, var(--background-modifier-border), transparent 40%);
+  padding: 8px 0;
+}
+
+.gpx-daily-banner-badge-group > .setting-item:first-of-type {
+  border-top: none;
 }
 
 .gpx-daily-banner-settings-advanced {
   border-top: 1px solid var(--background-modifier-border);
-  margin-top: 22px;
+  margin-top: 24px;
   padding-top: 14px;
 }
 
@@ -80,40 +171,27 @@
   cursor: pointer;
   font-size: var(--font-ui-medium);
   font-weight: 650;
-  padding: 4px 0;
+  padding: 6px 0;
 }
 
 .gpx-daily-banner-settings-advanced-content {
-  padding-top: 8px;
+  padding-top: 10px;
 }
 
 .gpx-daily-banner-settings-subsection {
-  margin: 20px 0 26px;
+  margin: 16px 0 20px;
 }
 
-.gpx-daily-banner-settings-subsection h3 {
-  border-bottom: 1px solid var(--background-modifier-border);
-  font-size: var(--font-ui-medium);
-  margin: 0 0 4px;
-  padding-bottom: 6px;
-}
-
-.gpx-daily-banner-legacy-warning {
-  align-items: flex-start;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.35);
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 10px 0 16px;
-  padding: 10px 12px;
-}
-
-.gpx-daily-banner-legacy-warning span {
+.gpx-daily-banner-settings-subsection > h4 {
+  border-bottom: 1px dashed var(--background-modifier-border);
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
+  letter-spacing: 0.05em;
+  margin: 0 0 8px;
+  padding-bottom: 4px;
+  text-transform: uppercase;
 }
+
 
 /*
  * Daily notes use a responsive, generated Hero image as the first viewport.

@@ -1,6 +1,6 @@
 {
   "name": "gpx-daily-banner",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "description": "Mobile-first Obsidian daily note map banners from 一生足迹 tracks, with GPX import support.",
   "main": "main.js",
   "scripts": {
