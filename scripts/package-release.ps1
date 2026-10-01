@@ -12,7 +12,7 @@ $releaseDirectory = Join-Path $pluginRoot "releases"
 $archivePath = Join-Path $releaseDirectory ("gpx-daily-banner-{0}.zip" -f $version)
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("gpx-daily-banner-" + [guid]::NewGuid().ToString("N"))
 $stagingDirectory = Join-Path $tempRoot "gpx-daily-banner"
-$files = @("main.js", "manifest.json", "styles.css", "versions.json", "README.md", "LICENSE", "CHANGELOG.md")
+$files = @("main.js", "manifest.json", "styles.css", "versions.json", "README.md", "AUDIT.md", "LICENSE", "CHANGELOG.md")
 
 try {
   New-Item -ItemType Directory -Path $releaseDirectory -Force | Out-Null

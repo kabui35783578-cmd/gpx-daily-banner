@@ -1,4 +1,4 @@
-import { FileSystemAdapter, TFile, Vault } from "obsidian";
+import { FileSystemAdapter, Platform, TFile, Vault } from "obsidian";
 import { dailyDataRawFileName } from "./daily-data-date";
 import { DailyDataSourceKind, GpxDailyBannerSettings } from "./types";
 import { cleanFilePath, debug, joinPath, waitForStableFile } from "./utils";
@@ -18,7 +18,9 @@ export interface DailyDataReadResult {
 
 export async function readDailyDataForDate(vault: Vault, settings: GpxDailyBannerSettings, dateKey: string): Promise<DailyDataReadResult> {
   const fileName = dailyDataRawFileName(dateKey, settings);
-  if (settings.dailyDataSourceMode === "external") {
+  // Mobile cannot access a desktop absolute path. Use the synced Vault bridge
+  // without rewriting the shared desktop setting.
+  if (settings.dailyDataSourceMode === "external" && !Platform.isMobile) {
     return await readExternalData(settings, fileName);
   }
   return await readBridgeData(vault, settings, fileName);

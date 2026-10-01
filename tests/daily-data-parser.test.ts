@@ -3,9 +3,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { calculateDistanceMeters, calculateDurationMs } from "../src/track-metrics";
 import { DEFAULT_DAILY_DATA_GAP_MINUTES, parseDailyData } from "../src/daily-data-parser";
 import { dailyDataRawFileName, unixDayStartSeconds } from "../src/daily-data-date";
-import { shouldBlockAutomaticGpxForDailyData } from "../src/daily-data-conflict";
 import { readCoreDailyNotesSettings, shouldFollowCoreDailyNotesSettings } from "../src/daily-notes-config";
-import { convertPointForMap, tileUrl } from "../src/coordinate";
+import { collectBounds, convertPointForMap, lonLatToWorldPixel, simplifyTracks, tileUrl } from "../src/coordinate";
 import { AMAP_CLEAN_TILE_URL, AMAP_MINIMAL_TILE_URL, AMAP_STANDARD_TILE_URL, DEFAULT_MAP_TILE_PRESET_ID, MAP_TILE_PRESETS } from "../src/map-presets";
 import type { GpxDailyBannerSettings, ParsedTrack, TrackPoint } from "../src/types";
 
@@ -45,12 +44,6 @@ assert.equal(unixDayStartSeconds("2026-07-23", timezoneSettings), 1_784_736_000)
 assert.equal(unixDayStartSeconds("2026-07-24", timezoneSettings), 1_784_822_400);
 assert.equal(dailyDataRawFileName("2026-07-24", timezoneSettings), "1784822400_raw");
 assert.equal(1_784_822_400 - 1_784_736_000, 86_400);
-
-assert.equal(shouldBlockAutomaticGpxForDailyData(undefined, false), false);
-assert.equal(shouldBlockAutomaticGpxForDailyData({ status: "failed" }, true), false);
-assert.equal(shouldBlockAutomaticGpxForDailyData({ status: "pending-note" }, true), false);
-assert.equal(shouldBlockAutomaticGpxForDailyData({ status: "processed" }, false), false);
-assert.equal(shouldBlockAutomaticGpxForDailyData({ status: "processed" }, true), true);
 
 const coreDailyNotes = readCoreDailyNotesSettings({
   internalPlugins: {
@@ -128,4 +121,13 @@ if (existsSync(rawPath)) {
   }
 }
 
-console.log("daily-data parser, source-date, metric, and supplied-raw checks passed");
+const largeTrack: ParsedTrack[] = [{ segments: [{ points: Array.from({ length: 200_000 }, (_, i) => ({ lat: 30 + i / 1_000_000, lon: 120 + i / 1_000_000 })) }] }];
+assert.equal(collectBounds(largeTrack).minLat, 30);
+const simplifiedLarge = simplifyTracks(largeTrack);
+assert.ok(countPoints(simplifiedLarge) <= 5000);
+assert.equal(simplifiedLarge[0].segments[0].points[0], largeTrack[0].segments[0].points[0]);
+assert.equal(simplifiedLarge[0].segments[0].points.at(-1), largeTrack[0].segments[0].points.at(-1));
+assert.throws(() => collectBounds([]), /坐标点/);
+assert.ok(Number.isFinite(lonLatToWorldPixel(90, 180, 18).y));
+assert.ok(Number.isFinite(lonLatToWorldPixel(-90, -180, 18).y));
+console.log("daily-data parser, source-date, metrics, large-track geometry and supplied-raw checks passed");

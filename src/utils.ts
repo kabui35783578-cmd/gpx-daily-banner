@@ -95,18 +95,19 @@ export function debug(settings: GpxDailyBannerSettings, ...args: unknown[]): voi
 }
 
 export async function waitForStableFile(vault: Vault, file: TFile, maxRetries = 3): Promise<TFile | null> {
-  let previousSize = -1;
-  let latest: TFile | null = file;
-  await delay(800);
+  let previousSize = file.stat.size;
+  let previousMtime = file.stat.mtime;
+  await delay(400);
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const candidate = vault.getAbstractFileByPath(file.path);
     if (!isTFile(candidate)) return null;
-    latest = candidate;
     const size = candidate.stat.size;
-    if (size > 0 && size === previousSize) return candidate;
+    const mtime = candidate.stat.mtime;
+    if (size > 0 && size === previousSize && mtime === previousMtime) return candidate;
     previousSize = size;
-    await delay(600);
+    previousMtime = mtime;
+    await delay(400);
   }
   const candidate = vault.getAbstractFileByPath(file.path);
-  return isTFile(candidate) && candidate.stat.size > 0 ? candidate : latest;
+  return isTFile(candidate) && candidate.stat.size > 0 && candidate.stat.size === previousSize && candidate.stat.mtime === previousMtime ? candidate : null;
 }

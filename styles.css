@@ -336,7 +336,7 @@
 @media (prefers-reduced-motion: reduce) {
   .gpx-daily-banner-hero.gpx-daily-banner-hero-enter > .image-wrapper,
   .gpx-daily-banner-hero.gpx-daily-banner-hero-enter > img {
-    animation-duration: 120ms;
+    animation: none !important;
     transform: none !important;
   }
 }
@@ -379,8 +379,18 @@
   padding-inline: var(--file-margins, 16px);
 }
 
+/* Pane width, not just window width: desktop split panes and tablets. */
+.gpx-daily-banner-view.gpx-daily-banner-narrow .gpx-daily-banner-hero-desktop {
+  display: none !important;
+}
+
+.gpx-daily-banner-view.gpx-daily-banner-narrow .gpx-daily-banner-hero-mobile {
+  display: flex !important;
+}
+
 .gpx-daily-banner-confirm {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
   margin-top: 18px;

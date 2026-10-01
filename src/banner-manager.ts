@@ -1,4 +1,5 @@
-import { Notice, TFile, Vault } from "obsidian";
+import { Notice, Platform, TFile, Vault } from "obsidian";
+import { hasManualOverride, latestManualRecord } from "./banner-priority";
 import { parseDailyData } from "./daily-data-parser";
 import { DailyDataSource, readDailyDataForDate } from "./daily-data-source";
 import { parseGpx, getMetadataTime } from "./gpx-parser";
@@ -20,6 +21,7 @@ export interface ProcessOptions {
 export interface DailyDataProcessOptions {
   force?: boolean;
   notifyMissing?: boolean;
+  restoreAutomatic?: boolean;
 }
 
 interface TrackJob {
@@ -33,11 +35,7 @@ interface TrackJob {
   force: boolean;
   file?: TFile;
   dailyData?: DailyDataSource;
-}
-
-interface RenderedImage {
-  path: string;
-  data: ArrayBuffer;
+  restoreAutomatic?: boolean;
 }
 
 interface RenderResult {
@@ -47,6 +45,12 @@ interface RenderResult {
 
 export class BannerManager {
   private queue = new ProcessingQueue();
+  private pendingGpx = new Map<string, Promise<void>>();
+  private dailyRefreshes = new Map<string, Promise<boolean>>();
+  private dailyRefreshAgain = new Map<string, DailyDataProcessOptions>();
+  private disposed = false;
+
+  dispose(): void { this.disposed = true; }
 
   constructor(
     private vault: Vault,
@@ -68,15 +72,26 @@ export class BannerManager {
   }
 
   async processGpxFile(file: TFile, options: ProcessOptions = {}): Promise<void> {
+    if (this.disposed) return;
+    const path = file.path;
+    const existing = this.pendingGpx.get(path);
+    if (existing) return existing;
+    const task = this.processStableGpxFile(file, options).finally(() => this.pendingGpx.delete(path));
+    this.pendingGpx.set(path, task);
+    await task;
+    const latest = this.vault.getAbstractFileByPath(path);
+    if (!this.disposed && latest instanceof TFile && this.getData().records[path]?.status === "processed" && !this.isUnchangedProcessed(latest)) {
+      await this.processGpxFile(latest, options);
+    }
+  }
+
+  private async processStableGpxFile(file: TFile, options: ProcessOptions): Promise<void> {
     const settings = this.getSettings();
     if (!isGpxFile(file)) {
       new Notice("当前文件不是 GPX 文件。");
       return;
     }
-    if (!options.force && this.isUnchangedProcessed(file)) {
-      new Notice("GPX 文件已经处理，无需重复处理。");
-      return;
-    }
+    if (!options.force && this.isUnchangedProcessed(file)) return;
     if (this.queue.isFileActive(file.path)) return;
 
     const stableFile = options.skipStabilityCheck ? file : await waitForStableFile(this.vault, file);
@@ -85,6 +100,8 @@ export class BannerManager {
       return;
     }
 
+    const sourceSize = stableFile.stat.size;
+    const sourceModifiedTime = stableFile.stat.mtime;
     let xml = "";
     let tracks: ParsedTrack[] = [];
     let dateKey = "";
@@ -103,11 +120,11 @@ export class BannerManager {
         kind: "gpx",
         sourceKey: stableFile.path,
         sourcePath: stableFile.path,
-        sourceSize: stableFile.stat.size,
-        sourceModifiedTime: stableFile.stat.mtime,
+        sourceSize,
+        sourceModifiedTime,
         dateKey,
         tracks,
-        force: true,
+        force: options.force === true,
         file: stableFile
       });
     });
@@ -118,7 +135,41 @@ export class BannerManager {
   }
 
   async refreshDailyDataForDate(dateKey: string, options: DailyDataProcessOptions = {}): Promise<boolean> {
+    if (this.disposed) return true;
+    const pending = this.dailyRefreshes.get(dateKey);
+    if (pending) {
+      const previous = this.dailyRefreshAgain.get(dateKey);
+      this.dailyRefreshAgain.set(dateKey, {
+        force: previous?.force || options.force,
+        notifyMissing: previous?.notifyMissing || options.notifyMissing,
+        restoreAutomatic: previous?.restoreAutomatic || options.restoreAutomatic
+      });
+      return pending;
+    }
+    const task = (async () => {
+      let current = options;
+      let ready: boolean;
+      do {
+        this.dailyRefreshAgain.delete(dateKey);
+        ready = await this.processDailyDataForDate(dateKey, current);
+        current = this.dailyRefreshAgain.get(dateKey)!;
+      } while (current && !this.disposed);
+      return ready;
+    })().finally(() => {
+      this.dailyRefreshes.delete(dateKey);
+      this.dailyRefreshAgain.delete(dateKey);
+    });
+    this.dailyRefreshes.set(dateKey, task);
+    return task;
+  }
+
+  private async processDailyDataForDate(dateKey: string, options: DailyDataProcessOptions): Promise<boolean> {
+    if (this.disposed) return true;
     const settings = this.getSettings();
+    if (!options.restoreAutomatic && this.hasProcessedGpxForDate(dateKey)) {
+      if (options.notifyMissing) new Notice(`${dateKey} 已使用手动 GPX，自动读取不会覆盖。`);
+      return true;
+    }
     const result = await readDailyDataForDate(this.vault, settings, dateKey);
     const source = result.source;
     if (!source) {
@@ -146,7 +197,7 @@ export class BannerManager {
       return true;
     }
 
-    if (!options.force && this.hasProcessedGpxForDate(dateKey)) {
+    if (!options.restoreAutomatic && this.hasProcessedGpxForDate(dateKey)) {
       debug(settings, "daily data skip: preserved manual GPX banner for date", dateKey);
       return true;
     }
@@ -161,7 +212,8 @@ export class BannerManager {
         dateKey,
         tracks,
         force: options.force === true,
-        dailyData: source
+        dailyData: source,
+        restoreAutomatic: options.restoreAutomatic
       });
     });
     return true;
@@ -172,17 +224,36 @@ export class BannerManager {
     if (!(note instanceof TFile)) return true;
 
     const imagePaths = extractBannerImagePaths(await this.vault.read(note));
-    if (imagePaths.length < 2) return true;
+    if (imagePaths.length < 2 || new Set(imagePaths).size < 2) return true;
     return imagePaths.some((path) => !(this.vault.getAbstractFileByPath(path) instanceof TFile));
   }
 
+  async restoreAutomaticForDate(dateKey: string): Promise<void> {
+    await this.refreshDailyDataForDate(dateKey, { force: true, notifyMissing: true, restoreAutomatic: true });
+  }
+
   async regenerateForDate(dateKey: string): Promise<void> {
+    if (this.hasProcessedGpxForDate(dateKey)) {
+      const selected = latestManualRecord(this.getData(), dateKey);
+      const selectedPath = this.getData().manualOverrides?.[dateKey] || selected?.path;
+      const file = selectedPath && !selected?.sourceDeleted ? this.vault.getAbstractFileByPath(selectedPath) : null;
+      if (file instanceof TFile) {
+        await this.processGpxFile(file, { force: true, skipStabilityCheck: true });
+      } else {
+        new Notice("手动 GPX 原文件已删除或丢失，保留现有封面；如需自动轨迹，请执行解除手动覆盖命令。");
+      }
+      return;
+    }
     const dailySource = await readDailyDataForDate(this.vault, this.getSettings(), dateKey);
     if (dailySource.source) {
       await this.refreshDailyDataForDate(dateKey, { force: true, notifyMissing: true });
       return;
     }
 
+    if (this.getData().manualOverrides?.[dateKey] === "") {
+      new Notice(`没有找到 ${dateKey} 的自动轨迹文件，保留现有封面。`);
+      return;
+    }
     const record = Object.values(this.getData().records).find((item) => item.trackDate === dateKey && item.status !== "failed" && !item.sourceDeleted);
     if (!record) {
       new Notice(`没有找到 ${dateKey} 的 GPX 或一生足迹处理记录。`);
@@ -223,9 +294,14 @@ export class BannerManager {
   }
 
   private async processTrackJob(job: TrackJob): Promise<void> {
-    const settings = this.getSettings();
+    if (this.disposed) return;
+    // Recheck inside the per-date queue: a manual job may have finished while
+    // the automatic source was being read/parsed.
+    if (job.kind === "daily-data" && !job.restoreAutomatic && this.hasProcessedGpxForDate(job.dateKey)) return;
+    const settings = { ...this.getSettings() };
     const notePath = dailyNotePathForDate(job.dateKey, settings);
     const note = await getOrCreateDailyNote(this.vault, job.dateKey, settings);
+    if (this.disposed) return;
     if (!note) {
       if (job.kind === "gpx" && job.file) {
         await this.upsertRecord({
@@ -252,7 +328,7 @@ export class BannerManager {
       return;
     }
 
-    const renderTracks = job.kind === "gpx" && settings.sameDayMode === "merge" && job.file
+    const renderTracks = job.kind === "gpx" && !job.force && settings.sameDayMode === "merge" && job.file
       ? await this.collectTracksForDate(job.dateKey, job.file, job.tracks)
       : job.tracks;
     const input: RenderInput = {
@@ -267,17 +343,15 @@ export class BannerManager {
 
     const imagePath = bannerImagePath(job.dateKey, settings);
     const heroPaths = heroImagePaths(job.dateKey, settings);
-    const renderedImages: RenderedImage[] = [];
     let usedOfflineFallback = false;
+    const firstVariant = Platform.isMobile || window.innerWidth <= 600 ? "mobile" : "desktop";
+    const variants = firstVariant === "mobile" ? ["mobile", "desktop"] as const : ["desktop", "mobile"] as const;
     try {
-      const bannerResult = await this.renderImage(input, settings);
-      renderedImages.push({ path: imagePath, data: bannerResult.data });
-      usedOfflineFallback = bannerResult.usedOfflineFallback;
-
-      for (const variant of ["desktop", "mobile"] as const) {
+      for (const variant of variants) {
         const dimensions = HERO_IMAGE_DIMENSIONS[variant];
         const heroSettings = {
           ...settings,
+          onlineMapEnabled: settings.onlineMapEnabled && !usedOfflineFallback,
           imageWidth: dimensions.width,
           imageHeight: dimensions.height
         };
@@ -286,27 +360,33 @@ export class BannerManager {
           viewportPadding: Math.round(Math.min(dimensions.width, dimensions.height) * 0.13)
         };
         const heroResult = await this.renderImage(heroInput, heroSettings);
-        renderedImages.push({ path: heroPaths[variant], data: heroResult.data });
+        if (this.disposed) return;
+        await saveBannerImage(this.vault, heroPaths[variant], heroResult.data);
         usedOfflineFallback = usedOfflineFallback || heroResult.usedOfflineFallback;
+        if (variant === firstVariant) {
+          // Publish the first useful image immediately. Both embeds temporarily
+          // point to it, so the other device never sees a missing/stale track.
+          await upsertBannerBlock(this.vault, note, { desktop: heroPaths[variant], mobile: heroPaths[variant] });
+          const data = this.getData();
+          data.manualOverrides ??= {};
+          if (job.kind === "gpx") data.manualOverrides[job.dateKey] = job.sourcePath;
+          else if (job.restoreAutomatic) data.manualOverrides[job.dateKey] = "";
+          await this.saveData();
+        }
       }
+      await upsertBannerBlock(this.vault, note, heroPaths);
+      const bannerResult = await this.renderImage(input, { ...settings, onlineMapEnabled: settings.onlineMapEnabled && !usedOfflineFallback });
+      if (this.disposed) return;
+      await saveBannerImage(this.vault, imagePath, bannerResult.data);
+      usedOfflineFallback = usedOfflineFallback || bannerResult.usedOfflineFallback;
     } catch (error) {
+      if (this.disposed) return;
       await this.markJobFailed(job, note.path, error);
       if (settings.onlineMapEnabled && !settings.offlineFallback) {
         new Notice("地图瓦片加载失败，且未开启离线图。");
       } else {
         new Notice(error instanceof Error ? error.message : "轨迹封面生成失败。");
       }
-      return;
-    }
-
-    try {
-      for (const renderedImage of renderedImages) {
-        await saveBannerImage(this.vault, renderedImage.path, renderedImage.data);
-      }
-    } catch (error) {
-      await this.markJobFailed(job, note.path, error);
-      debug(settings, "save rendered images failed", error);
-      new Notice("图片保存失败。");
       return;
     }
 
@@ -347,6 +427,8 @@ export class BannerManager {
     }
 
     if (job.kind === "gpx" && job.file) {
+      this.getData().manualOverrides ??= {};
+      this.getData().manualOverrides![job.dateKey] = recordPath;
       await this.upsertRecord(
         {
           path: recordPath,
@@ -356,9 +438,10 @@ export class BannerManager {
           imagePath,
           notePath: note.path,
           status: "processed",
-          sourceDeleted
+          sourceDeleted,
+          processedAt: Date.now()
         },
-        recordPath !== job.file.path ? job.file.path : undefined
+        recordPath !== job.sourceKey ? job.sourceKey : undefined
       );
     } else if (job.dailyData) {
       await this.upsertDailyDataRecord({
@@ -373,7 +456,7 @@ export class BannerManager {
       });
     }
     if (job.kind === "daily-data") {
-      new Notice(job.force ? "今天的一生足迹轨迹已重新生成。" : "今天的一生足迹轨迹已生成。");
+      new Notice(`${job.dateKey} 的一生足迹轨迹已${job.force ? "重新" : ""}生成。`);
     } else if (sourceDeleted) {
       new Notice(`已使用 GPX 轨迹覆盖 ${job.dateKey} 的日记封面，原始 GPX 已删除。`);
     } else {
@@ -426,9 +509,7 @@ export class BannerManager {
   }
 
   private hasProcessedGpxForDate(dateKey: string): boolean {
-    return Object.values(this.getData().records).some(
-      (record) => record.trackDate === dateKey && record.status === "processed"
-    );
+    return hasManualOverride(this.getData(), dateKey);
   }
 
   private isUnchangedProcessed(file: TFile): boolean {

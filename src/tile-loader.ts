@@ -1,10 +1,45 @@
 import { requestUrl } from "obsidian";
 
-export async function loadTileImage(url: string): Promise<HTMLImageElement> {
+// Decoded images are bounded (~24 MiB at 256px/tile); promises deduplicate
+// overlapping desktop/mobile requests without storing map tokens on disk.
+const tileCache = new Map<string, HTMLImageElement>();
+const pendingTiles = new Map<string, Promise<HTMLImageElement>>();
+const failedTiles = new Map<string, number>();
+
+export function clearTileCache(): void {
+  tileCache.clear();
+  failedTiles.clear();
+}
+
+export async function loadTileImage(url: string, deadline = Date.now() + 6000): Promise<HTMLImageElement> {
+  const cached = tileCache.get(url);
+  if (cached) {
+    tileCache.delete(url);
+    tileCache.set(url, cached);
+    return cached;
+  }
+  if ((failedTiles.get(url) ?? 0) > Date.now()) throw new Error("地图瓦片暂时不可用。");
+  const pending = pendingTiles.get(url);
+  if (pending) return withTimeout(pending, Math.max(1, deadline - Date.now()), "地图瓦片请求超时。");
+  const task = loadCandidates(url, deadline).then((image) => {
+    tileCache.set(url, image);
+    while (tileCache.size > 96) tileCache.delete(tileCache.keys().next().value!);
+    return image;
+  }).catch((error) => {
+    failedTiles.set(url, Date.now() + 15000);
+    while (failedTiles.size > 128) failedTiles.delete(failedTiles.keys().next().value!);
+    throw error;
+  }).finally(() => pendingTiles.delete(url));
+  pendingTiles.set(url, task);
+  return task;
+}
+
+async function loadCandidates(url: string, deadline: number): Promise<HTMLImageElement> {
   let lastError: unknown;
-  for (const candidate of tileUrlCandidates(url)) {
+  for (const candidate of tileUrlCandidates(url).slice(0, 2)) {
+    if (Date.now() >= deadline) break;
     try {
-      return await loadTileImageOnce(candidate);
+      return await loadTileImageOnce(candidate, deadline);
     } catch (error) {
       lastError = error;
     }
@@ -12,7 +47,7 @@ export async function loadTileImage(url: string): Promise<HTMLImageElement> {
   throw lastError instanceof Error ? lastError : new Error("地图瓦片图片加载失败。");
 }
 
-async function loadTileImageOnce(url: string): Promise<HTMLImageElement> {
+async function loadTileImageOnce(url: string, deadline: number): Promise<HTMLImageElement> {
   const response = await withTimeout(
     requestUrl({
       url,
@@ -22,7 +57,7 @@ async function loadTileImageOnce(url: string): Promise<HTMLImageElement> {
         "User-Agent": "GPX Daily Banner Obsidian Plugin/0.3"
       }
     }),
-    8000,
+    Math.max(1, Math.min(3000, deadline - Date.now())),
     "地图瓦片请求超时。"
   );
   const contentType = headerValue(response.headers, "content-type").toLowerCase();
@@ -47,8 +82,10 @@ async function loadTileImageOnce(url: string): Promise<HTMLImageElement> {
   try {
     const image = new Image();
     image.decoding = "async";
+    // Install legacy WebView handlers before src (cached images can fire early).
+    const decoded = decodeImage(image, Math.max(1, Math.min(3000, deadline - Date.now())));
     image.src = objectUrl;
-    await decodeImage(image);
+    await decoded;
     if (tileImageLooksBlocked(image)) {
       throw new Error("地图服务返回了拦截提示，已切换离线图。");
     }
@@ -119,17 +156,13 @@ function alternateTileHosts(hostname: string): string[] {
   return [];
 }
 
-function decodeImage(image: HTMLImageElement): Promise<void> {
-  if (typeof image.decode === "function") {
-    return withTimeout(image.decode(), 5000, "地图瓦片图片解码超时。");
-  }
-
+function decodeImage(image: HTMLImageElement, timeoutMs: number): Promise<void> {
   return withTimeout(
     new Promise<void>((resolve, reject) => {
       image.onload = () => resolve();
       image.onerror = () => reject(new Error("地图瓦片图片加载失败。"));
     }),
-    5000,
+    timeoutMs,
     "地图瓦片图片加载超时。"
   );
 }

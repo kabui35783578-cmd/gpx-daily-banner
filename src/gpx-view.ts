@@ -115,8 +115,17 @@ export class GpxPreviewView extends TextFileView {
     const generate = actions.createEl("button", { text: "使用此 GPX 覆盖封面", cls: "mod-cta" });
     generate.onclick = async () => {
       if (!(this.file instanceof TFile)) return;
-      await this.plugin.manager.processGpxFile(this.file, { force: true, skipStabilityCheck: true });
-      await this.render();
+      generate.disabled = true;
+      generate.setText("正在生成轨迹…");
+      try {
+        await this.plugin.manager.processGpxFile(this.file, { force: true, skipStabilityCheck: true });
+        await this.render();
+      } catch (error) {
+        new Notice(error instanceof Error ? error.message : "轨迹生成失败。");
+      } finally {
+        generate.disabled = false;
+        generate.setText("使用此 GPX 覆盖封面");
+      }
     };
 
     const openNote = actions.createEl("button", { text: "打开对应日记" });

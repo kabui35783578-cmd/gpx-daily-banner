@@ -18,6 +18,24 @@ try {
     logLevel: "silent"
   });
   await import(`${pathToFileURL(outfile).href}?run=${Date.now()}`);
+  const workflowOutfile = join(tempDir, "banner-workflow.test.mjs");
+  await build({
+    entryPoints: [fileURLToPath(new URL("../tests/banner-workflow.test.ts", import.meta.url))],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    target: "node20",
+    outfile: workflowOutfile,
+    logLevel: "silent",
+    plugins: [{
+      name: "mock-obsidian-and-rendering",
+      setup(build) {
+        build.onResolve({ filter: /^obsidian$/ }, () => ({ path: fileURLToPath(new URL("../tests/obsidian-mock.ts", import.meta.url)) }));
+        build.onResolve({ filter: /^\.\/(map-renderer|offline-renderer|gpx-parser)$/ }, () => ({ path: fileURLToPath(new URL("../tests/render-mock.ts", import.meta.url)) }));
+      }
+    }]
+  });
+  await import(`${pathToFileURL(workflowOutfile).href}?run=${Date.now()}`);
 } finally {
   await rm(tempDir, { recursive: true, force: true });
 }

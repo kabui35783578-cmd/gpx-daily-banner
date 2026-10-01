@@ -1,4 +1,4 @@
-import { centerOfBounds, collectBounds } from "./coordinate";
+import { centerOfBounds, collectBounds, simplifyTracks } from "./coordinate";
 import { GpxDailyBannerSettings, RenderInput } from "./types";
 import { canvasToArrayBuffer, formatDistance, formatDuration } from "./utils";
 
@@ -32,17 +32,18 @@ export async function renderOfflineBanner(input: RenderInput, settings: GpxDaily
 
   const bounds = collectBounds(input.tracks);
   const padding = Math.max(80, Math.min(240, input.viewportPadding ?? 80));
-  const lonSpan = Math.max(0.000001, bounds.maxLon - bounds.minLon);
+  const center = centerOfBounds(bounds);
+  const longitudeScale = Math.max(0.01, Math.cos(center.lat * Math.PI / 180));
+  const lonSpan = Math.max(0.000001, (bounds.maxLon - bounds.minLon) * longitudeScale);
   const latSpan = Math.max(0.000001, bounds.maxLat - bounds.minLat);
   const scale = Math.min((canvas.width - padding * 2) / lonSpan, (canvas.height - padding * 2) / latSpan);
-  const center = centerOfBounds(bounds);
   const project = (lat: number, lon: number) => ({
-    x: canvas.width / 2 + (lon - center.lon) * scale,
+    x: canvas.width / 2 + (lon - center.lon) * longitudeScale * scale,
     y: canvas.height / 2 - (lat - center.lat) * scale
   });
 
-  input.tracks.forEach((track, trackIndex) => {
-    ctx.strokeStyle = settings.trackColors[trackIndex % settings.trackColors.length] ?? settings.trackColor;
+  simplifyTracks(input.tracks).forEach((track, trackIndex) => {
+    ctx.strokeStyle = trackIndex === 0 ? settings.trackColor : settings.trackColors[trackIndex % settings.trackColors.length] ?? settings.trackColor;
     ctx.lineWidth = settings.trackLineWidth;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";

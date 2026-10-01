@@ -13,13 +13,19 @@ export interface PixelPoint {
 }
 
 export function collectBounds(tracks: ParsedTrack[]): Bounds {
-  const points = tracks.flatMap((track) => track.segments).flatMap((segment) => segment.points);
-  return {
-    minLat: Math.min(...points.map((point) => point.lat)),
-    maxLat: Math.max(...points.map((point) => point.lat)),
-    minLon: Math.min(...points.map((point) => point.lon)),
-    maxLon: Math.max(...points.map((point) => point.lon))
-  };
+  const bounds = { minLat: Infinity, maxLat: -Infinity, minLon: Infinity, maxLon: -Infinity };
+  for (const track of tracks) {
+    for (const segment of track.segments) {
+      for (const point of segment.points) {
+        bounds.minLat = Math.min(bounds.minLat, point.lat);
+        bounds.maxLat = Math.max(bounds.maxLat, point.lat);
+        bounds.minLon = Math.min(bounds.minLon, point.lon);
+        bounds.maxLon = Math.max(bounds.maxLon, point.lon);
+      }
+    }
+  }
+  if (!Number.isFinite(bounds.minLat)) throw new Error("轨迹没有可绘制的坐标点。");
+  return bounds;
 }
 
 export function centerOfBounds(bounds: Bounds): TrackPoint {
@@ -30,7 +36,8 @@ export function centerOfBounds(bounds: Bounds): TrackPoint {
 }
 
 export function lonLatToWorldPixel(lat: number, lon: number, zoom: number): PixelPoint {
-  const sinLat = Math.sin((lat * Math.PI) / 180);
+  const mercatorLatitude = Math.max(-85.05112878, Math.min(85.05112878, lat));
+  const sinLat = Math.sin((mercatorLatitude * Math.PI) / 180);
   const scale = 256 * 2 ** zoom;
   return {
     x: ((lon + 180) / 360) * scale,
@@ -142,21 +149,26 @@ function perpendicularDistance(point: TrackPoint, start: TrackPoint, end: TrackP
 
 function douglasPeucker(points: TrackPoint[], epsilon: number): TrackPoint[] {
   if (points.length <= 2) return points;
-  let maxDistance = 0;
-  let index = 0;
-  const start = points[0];
-  const end = points[points.length - 1];
-  for (let i = 1; i < points.length - 1; i++) {
-    const distance = perpendicularDistance(points[i], start, end);
-    if (distance > maxDistance) {
-      maxDistance = distance;
-      index = i;
+  // Iterative index ranges avoid recursive stack overflow and repeated array
+  // copies for long recordings on mobile WebViews.
+  const keep = new Uint8Array(points.length);
+  keep[0] = keep[points.length - 1] = 1;
+  const ranges: Array<[number, number]> = [[0, points.length - 1]];
+  while (ranges.length) {
+    const [start, end] = ranges.pop()!;
+    let maxDistance = epsilon;
+    let index = -1;
+    for (let i = start + 1; i < end; i++) {
+      const distance = perpendicularDistance(points[i], points[start], points[end]);
+      if (distance > maxDistance) { maxDistance = distance; index = i; }
+    }
+    if (index !== -1) {
+      keep[index] = 1;
+      if (index - start > 1) ranges.push([start, index]);
+      if (end - index > 1) ranges.push([index, end]);
     }
   }
-  if (maxDistance <= epsilon) return [start, end];
-  const left = douglasPeucker(points.slice(0, index + 1), epsilon);
-  const right = douglasPeucker(points.slice(index), epsilon);
-  return left.slice(0, -1).concat(right);
+  return points.filter((_, index) => keep[index]);
 }
 
 export function simplifySegment(segment: TrackSegment, targetPoints: number): TrackSegment {

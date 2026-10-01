@@ -1,4 +1,5 @@
 import { App, Notice, PluginSettingTab, Setting, normalizePath } from "obsidian";
+import { hasManualOverride, latestManualRecord } from "./banner-priority";
 import type GpxDailyBannerPlugin from "./main";
 import { AMAP_CLEAN_TILE_URL, DEFAULT_MAP_TILE_PRESET_ID, getMapTilePreset, MAP_TILE_PRESETS } from "./map-presets";
 import { GpxDailyBannerSettings, MapCoordinateSystem, MapTilePresetId, SameDayMode, TimezoneMode } from "./types";
@@ -291,7 +292,10 @@ export class GpxDailyBannerSettingTab extends PluginSettingTab {
         this.plugin.settings.maxTileCount = v;
         await this.plugin.saveSettings();
       });
-      textSetting(customMap, "天地图 Token（可选）", "使用天地图时填写的开发令牌。", this.plugin.settings.mapTileToken, async (v) => {
+    }
+    if (this.plugin.settings.onlineMapEnabled && this.plugin.settings.mapTilePreset === "tianditu-vector") {
+      const tokenSection = createSubsection(advancedContent, "天地图认证");
+      textSetting(tokenSection, "天地图 TK", "天地图必填；令牌仅保存在插件设置中。", this.plugin.settings.mapTileToken, async (v) => {
         this.plugin.settings.mapTileToken = v.trim();
         await this.plugin.saveSettings();
       });
@@ -325,7 +329,7 @@ export class GpxDailyBannerSettingTab extends PluginSettingTab {
     const gpxOpts = createSubsection(advancedContent, "GPX 文件管理");
     new Setting(gpxOpts)
       .setName("同一天多个 GPX 处理方式")
-      .setDesc("默认覆盖模式：新上传的文件直接覆盖当天封面。")
+      .setDesc("默认新导入覆盖；合并仅用于自动导入。显式“使用当前 GPX 覆盖”始终只使用所选文件。")
       .addDropdown((dropdown) =>
         dropdown
           .addOption("replace", "覆盖模式（推荐）")
@@ -340,7 +344,7 @@ export class GpxDailyBannerSettingTab extends PluginSettingTab {
     toggleSetting(gpxOpts, "处理成功后自动删除 GPX", this.plugin.settings.autoDeleteAfterSuccess, async (v) => {
       this.plugin.settings.autoDeleteAfterSuccess = v;
       await this.plugin.saveSettings();
-    }, "仅影响手动 GPX 文件，一生足迹文件不会被删除。");
+    }, "仅删除 GPX，不影响一生足迹文件。删除后保留手动优先级和封面，但无法用原文件重新生成，建议优先归档。");
 
     toggleSetting(gpxOpts, "处理成功后归档 GPX", this.plugin.settings.archiveAfterSuccess, async (v) => {
       this.plugin.settings.archiveAfterSuccess = v;
@@ -375,6 +379,19 @@ export class GpxDailyBannerSettingTab extends PluginSettingTab {
 
     const refreshBtn = actionsEl.createEl("button", { text: "立即同步今天", cls: "mod-cta" });
     const guideToggleBtn = actionsEl.createEl("button", { text: "同步指南" });
+    if (hasManualOverride(this.plugin.data, todayKey(this.plugin.settings))) {
+      const restoreBtn = actionsEl.createEl("button", { text: "恢复自动轨迹" });
+      restoreBtn.title = "解除今天的手动 GPX 覆盖；只有自动文件可用且生成成功才切换。";
+      restoreBtn.onclick = async () => {
+        restoreBtn.disabled = true;
+        try {
+          await this.plugin.manager.restoreAutomaticForDate(todayKey(this.plugin.settings));
+          this.display();
+        } catch (error) {
+          new Notice(error instanceof Error ? error.message : "恢复失败。");
+        } finally { restoreBtn.disabled = false; }
+      };
+    }
 
     const guidePanel = card.createDiv({ cls: "gpx-daily-banner-guide-panel" });
     guidePanel.style.display = "none";
@@ -412,6 +429,15 @@ export class GpxDailyBannerSettingTab extends PluginSettingTab {
 
   private async updateStatusContent(titleEl: HTMLElement): Promise<void> {
     const dateKey = todayKey(this.plugin.settings);
+    if (hasManualOverride(this.plugin.data, dateKey)) {
+      const record = latestManualRecord(this.plugin.data, dateKey);
+      titleEl.empty();
+      const row = titleEl.createDiv({ cls: "gpx-daily-banner-status-row is-ready" });
+      row.createEl("span", { cls: "gpx-status-indicator is-ready" });
+      row.createEl("strong", { text: `今日已使用手动 GPX (${dateKey})` });
+      titleEl.createDiv({ cls: "gpx-daily-banner-status-sub", text: record?.sourceDeleted ? "原文件已删除；保留手动封面，自动同步不会覆盖。" : "手动轨迹优先；点击“恢复自动轨迹”可切回一生足迹。" });
+      return;
+    }
     const fileName = dailyDataRawFileName(dateKey, this.plugin.settings);
     const result = await readDailyDataForDate(this.plugin.app.vault, this.plugin.settings, dateKey);
     titleEl.empty();

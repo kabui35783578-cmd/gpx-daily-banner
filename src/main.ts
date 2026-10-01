@@ -6,6 +6,7 @@ import { extractBannerImagePaths, removeBannerBlock } from "./daily-note";
 import { GPX_VIEW_TYPE, GpxPreviewView } from "./gpx-view";
 import { inferMapTilePresetId } from "./map-presets";
 import { DEFAULT_SETTINGS, GpxDailyBannerSettingTab } from "./settings";
+import { clearTileCache } from "./tile-loader";
 import { todayKey } from "./track-date";
 import { GpxDailyBannerSettings, PluginData } from "./types";
 import { BANNER_END, BANNER_START, cleanFilePath, cleanFolderPath, debug, delay, isGpxFile, isTFile, joinPath } from "./utils";
@@ -17,6 +18,8 @@ export default class GpxDailyBannerPlugin extends Plugin {
   data: PluginData = { records: {}, dailyDataRecords: {} };
   manager!: BannerManager;
   private dailyDataRefreshTimers = new Map<string, number>();
+  private saveChain: Promise<void> = Promise.resolve();
+  private unloaded = false;
 
   async onload(): Promise<void> {
     const loaded = await this.loadData() as StoredPluginData | null;
@@ -58,6 +61,9 @@ export default class GpxDailyBannerPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.unloaded = true;
+    this.manager?.dispose();
+    clearTileCache();
     debug(this.settings, "unloaded");
   }
 
@@ -120,26 +126,26 @@ export default class GpxDailyBannerPlugin extends Plugin {
   }
 
   async saveSettings(): Promise<void> {
-    await this.saveData({
-      ...this.settings,
-      records: this.data.records,
-      dailyDataRecords: this.data.dailyDataRecords
-    });
+    await this.savePluginData();
   }
 
   loadPluginData(loaded: StoredPluginData | null): void {
     this.data = {
       records: loaded?.records ?? {},
-      dailyDataRecords: loaded?.dailyDataRecords ?? {}
+      dailyDataRecords: loaded?.dailyDataRecords ?? {},
+      manualOverrides: loaded?.manualOverrides ?? {}
     };
   }
 
   async savePluginData(): Promise<void> {
-    await this.saveData({
+    const next = this.saveChain.catch(() => undefined).then(() => this.saveData({
       ...this.settings,
       records: this.data.records,
-      dailyDataRecords: this.data.dailyDataRecords
-    });
+      dailyDataRecords: this.data.dailyDataRecords,
+      manualOverrides: this.data.manualOverrides
+    }));
+    this.saveChain = next;
+    await next;
   }
 
   syncDailyNotesSettingsFromCore(): boolean {
@@ -187,6 +193,12 @@ export default class GpxDailyBannerPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "restore-today-automatic-track",
+      name: "解除今天的手动覆盖并恢复自动轨迹",
+      callback: () => { void this.manager.restoreAutomaticForDate(todayKey(this.settings)); }
+    });
+
+    this.addCommand({
       id: "process-current-gpx",
       name: "使用当前 GPX 覆盖日记封面",
       checkCallback: (checking) => {
@@ -222,7 +234,7 @@ export default class GpxDailyBannerPlugin extends Plugin {
         const file = this.app.workspace.getActiveFile();
         const canRun = isTFile(file) && file.extension === "md";
         if (canRun && !checking && file) {
-          const record = Object.values(this.data.records).find((item) => item.notePath === file.path && !item.sourceDeleted);
+          const record = Object.values(this.data.records).find((item) => item.notePath === file.path);
           const dailyRecord = Object.values(this.data.dailyDataRecords).find((item) => item.notePath === file.path);
           if (record) {
             void this.manager.regenerateForDate(record.trackDate);
@@ -233,6 +245,20 @@ export default class GpxDailyBannerPlugin extends Plugin {
           }
         }
         return canRun;
+      }
+    });
+
+    this.addCommand({
+      id: "restore-current-note-automatic-track",
+      name: "解除当前日记的手动覆盖并恢复自动轨迹",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        const record = file ? Object.values(this.data.records).find((item) => item.notePath === file.path) : undefined;
+        const daily = file ? Object.values(this.data.dailyDataRecords).find((item) => item.notePath === file.path) : undefined;
+        const dateKey = record?.trackDate || daily?.dateKey;
+        if (!dateKey) return false;
+        if (!checking) void this.manager.restoreAutomaticForDate(dateKey);
+        return true;
       }
     });
 
@@ -288,12 +314,14 @@ export default class GpxDailyBannerPlugin extends Plugin {
     this.registerMarkdownPostProcessor((element) => {
       hideBannerMarkersInPreview(element);
       if (decorateBannerEmbeds(element, mobileLayout.matches)) {
+        observeBannerViews();
         alignBannerHeroEmbeds();
         scheduleBannerHeroAlignment();
       }
     });
 
     const alignForViewportChange = () => {
+      observeBannerViews();
       updateHeroImagePriorities(this.app.workspace.containerEl, mobileLayout.matches);
       scheduleBannerHeroAlignment();
     };
@@ -369,6 +397,7 @@ export default class GpxDailyBannerPlugin extends Plugin {
     const retryDelays = [0, 1500, 3000, 5000];
     for (const retryDelay of retryDelays) {
       if (retryDelay > 0) await delay(retryDelay);
+      if (this.unloaded) return;
       try {
         const sourceReady = await this.manager.refreshTodayDailyData();
         if (sourceReady) return;
@@ -480,6 +509,8 @@ function alignBannerHeroEmbeds(): void {
     const viewRect = view.getBoundingClientRect();
     const viewWidth = view.clientWidth;
     const viewHeight = view.clientHeight;
+    const narrow = viewWidth > 0 && (viewWidth <= 600 || document.body.classList.contains("is-phone"));
+    if (toggleClassIfNeeded(view, "gpx-daily-banner-narrow", narrow)) updateHeroImagePriorities(view, narrow);
     if (viewRect.width <= 0 || viewRect.height <= 0 || viewWidth <= 0 || viewHeight <= 0) continue;
     const scaleX = viewRect.width / viewWidth;
     const scaleY = viewRect.height / viewHeight;
@@ -683,6 +714,8 @@ function configureHeroImage(embed: HTMLElement, isMobile: boolean, isDesktop: bo
   const image = embed.querySelector<HTMLImageElement>("img");
   if (!image) return;
   image.decoding = "async";
+  const view = embed.closest<HTMLElement>(BANNER_VIEW_SELECTOR);
+  if (view && view.clientWidth > 0) mobileLayout = view.clientWidth <= 600 || document.body.classList.contains("is-phone");
   const activeVariant = !isMobile && !isDesktop
     ? true
     : mobileLayout

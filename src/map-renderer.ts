@@ -26,9 +26,11 @@ interface LoadedTile extends TileTask {
 
 export async function renderMapBanner(input: RenderInput, settings: GpxDailyBannerSettings): Promise<ArrayBuffer> {
   let lastError: unknown;
+  const deadline = Date.now() + 12000;
   for (const source of mapTileSources(settings)) {
+    if (Date.now() >= deadline) break;
     try {
-      return await renderMapBannerWithSource(input, settings, source);
+      return await renderMapBannerWithSource(input, settings, source, Math.min(deadline, Date.now() + 5000));
     } catch (error) {
       lastError = error;
     }
@@ -36,12 +38,12 @@ export async function renderMapBanner(input: RenderInput, settings: GpxDailyBann
   throw lastError instanceof Error ? lastError : new Error("地图源全部加载失败。");
 }
 
-async function renderMapBannerWithSource(input: RenderInput, settings: GpxDailyBannerSettings, source: MapTilePreset): Promise<ArrayBuffer> {
+async function renderMapBannerWithSource(input: RenderInput, settings: GpxDailyBannerSettings, source: MapTilePreset, deadline: number): Promise<ArrayBuffer> {
   if (source.requiresToken && !settings.mapTileToken.trim()) {
     throw new Error("天地图需要 TK，请在高级设置中填写；也可以先切换到高德地图。");
   }
 
-  const tracks = simplifyTracks(convertTracksForMap(input.tracks, settings.trackCoordinateSystem, source.coordinateSystem));
+  const tracks = convertTracksForMap(simplifyTracks(input.tracks), settings.trackCoordinateSystem, source.coordinateSystem);
   const canvas = document.createElement("canvas");
   canvas.width = settings.imageWidth;
   canvas.height = settings.imageHeight;
@@ -52,10 +54,13 @@ async function renderMapBannerWithSource(input: RenderInput, settings: GpxDailyB
   const tileTasks = [];
   for (let x = viewport.minTileX; x <= viewport.maxTileX; x++) {
     for (let y = viewport.minTileY; y <= viewport.maxTileY; y++) {
+      const worldTileCount = 2 ** viewport.zoom;
+      if (y < 0 || y >= worldTileCount) continue;
+      const wrappedX = ((x % worldTileCount) + worldTileCount) % worldTileCount;
       tileTasks.push({
         x,
         y,
-        url: tileUrl(source.tileUrlTemplate, viewport.zoom, x, y, {
+        url: tileUrl(source.tileUrlTemplate, viewport.zoom, wrappedX, y, {
           subdomains: source.subdomains,
           tileYMode: source.tileYMode,
           token: settings.mapTileToken
@@ -69,7 +74,7 @@ async function renderMapBannerWithSource(input: RenderInput, settings: GpxDailyB
 
   ctx.fillStyle = "#e5e7eb";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const loadedTiles = await loadVisibleTiles(tileTasks);
+  const loadedTiles = await loadVisibleTiles(tileTasks, deadline);
   for (const tile of loadedTiles) {
     const dx = (tile.x * 256 - viewport.topLeftWorld.x) * viewport.scale;
     const dy = (tile.y * 256 - viewport.topLeftWorld.y) * viewport.scale;
@@ -77,7 +82,7 @@ async function renderMapBannerWithSource(input: RenderInput, settings: GpxDailyB
   }
 
   tracks.forEach((track, trackIndex) => {
-    ctx.strokeStyle = settings.trackColors[trackIndex % settings.trackColors.length] ?? settings.trackColor;
+    ctx.strokeStyle = trackIndex === 0 ? settings.trackColor : settings.trackColors[trackIndex % settings.trackColors.length] ?? settings.trackColor;
     ctx.lineWidth = settings.trackLineWidth;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
@@ -138,12 +143,16 @@ function configuredMapTileSource(settings: GpxDailyBannerSettings): MapTilePrese
   };
 }
 
-async function loadVisibleTiles(tileTasks: TileTask[]): Promise<LoadedTile[]> {
+async function loadVisibleTiles(tileTasks: TileTask[], deadline: number): Promise<LoadedTile[]> {
+  let failed = 0;
+  const maximumFailures = Math.floor(tileTasks.length * 0.25);
   const loadedTiles = (
-    await mapWithConcurrency(tileTasks, 4, async (tile): Promise<LoadedTile | undefined> => {
+    await mapWithConcurrency(tileTasks, 6, async (tile): Promise<LoadedTile | undefined> => {
+      if (Date.now() >= deadline || failed > maximumFailures) return undefined;
       try {
-        return { ...tile, image: await loadTileImage(tile.url) };
+        return { ...tile, image: await loadTileImage(tile.url, deadline) };
       } catch {
+        failed++;
         return undefined;
       }
     })

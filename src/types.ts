@@ -34,6 +34,7 @@ export interface ProcessedFileRecord {
   notePath: string;
   status: ProcessStatus;
   sourceDeleted?: boolean;
+  processedAt?: number;
   error?: string;
 }
 
@@ -52,6 +53,8 @@ export interface DailyDataRecord {
 export interface PluginData {
   records: Record<string, ProcessedFileRecord>;
   dailyDataRecords: Record<string, DailyDataRecord>;
+  /** Successful manual selection; survives source deletion and failed retries. */
+  manualOverrides?: Record<string, string>;
 }
 
 export interface GpxDailyBannerSettings {
