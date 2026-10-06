@@ -7,6 +7,7 @@ import { cleanFolderPath, joinPath } from "./utils";
 import { DEFAULT_DAILY_DATA_GAP_MINUTES } from "./daily-data-parser";
 import { dailyDataRawFileName } from "./daily-data-date";
 import { readDailyDataForDate } from "./daily-data-source";
+import { storedHeroImagesReady } from "./daily-data-cleanup";
 import { dailyNotePathForDate } from "./daily-note";
 import { todayKey } from "./track-date";
 
@@ -17,6 +18,7 @@ export const DEFAULT_SETTINGS: GpxDailyBannerSettings = {
   dailyDataSourceMode: "bridge",
   dailyDataGapMinutes: DEFAULT_DAILY_DATA_GAP_MINUTES,
   dailyDataStartupDelaySeconds: 1,
+  autoDeleteDailyDataAfterSuccess: false,
   dailyNoteFolder: "Daily Notes",
   dailyNoteDateFormat: "YYYY-MM-DD",
   dailyNoteExtension: "md",
@@ -87,6 +89,15 @@ export class GpxDailyBannerSettingTab extends PluginSettingTab {
         await this.plugin.saveSettings();
       }
     );
+
+    toggleSetting(syncSection, "生成成功后删除当日轨迹文件", this.plugin.settings.autoDeleteDailyDataAfterSuccess, async (value) => {
+      this.plugin.settings.autoDeleteDailyDataAfterSuccess = value;
+      await this.plugin.saveSettings();
+      if (value) {
+        const count = await this.plugin.manager.cleanupProcessedDailyData();
+        new Notice(`已清理 ${count} 个成功生成的当日轨迹文件。`);
+      }
+    }, "仅清理本库轨迹同步文件夹里的 _raw / _raw.csv；确认封面和引用有效、数据未变化后删除。失败或未处理的文件会保留；删除后重新生成需要再次导入原始轨迹。");
 
     // 日记配置跟随核心
     const coreSetting = new Setting(syncSection)
@@ -457,6 +468,16 @@ export class GpxDailyBannerSettingTab extends PluginSettingTab {
         const row3 = titleEl.createDiv({ cls: "gpx-daily-banner-status-sub is-warning" });
         row3.createEl("span", { text: `⚠️ 尚未创建当天日记：${notePath}` });
       }
+      return;
+    }
+
+    const dailyRecord = this.plugin.data.dailyDataRecords[dateKey];
+    if (dailyRecord?.status === "processed" && dailyRecord.sourceDeleted
+        && await storedHeroImagesReady(this.plugin.app.vault, dailyRecord)) {
+      const row = titleEl.createDiv({ cls: "gpx-daily-banner-status-row is-ready" });
+      row.createEl("span", { cls: "gpx-status-indicator is-ready" });
+      row.createEl("strong", { text: `今日封面已生成 (${dateKey})` });
+      titleEl.createDiv({ cls: "gpx-daily-banner-status-sub", text: "原始轨迹文件已自动清理，封面保留。重新生成请再次导入原始轨迹。" });
       return;
     }
 

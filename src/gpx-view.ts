@@ -1,7 +1,7 @@
 import { Notice, TFile, TextFileView, WorkspaceLeaf } from "obsidian";
 import { dailyNotePathForDate } from "./daily-note";
 import { parseGpx, getMetadataTime } from "./gpx-parser";
-import { bannerImagePath } from "./image-storage";
+import { previewImageFile } from "./image-storage";
 import type GpxDailyBannerPlugin from "./main";
 import { resolveTrackDate } from "./track-date";
 import { calculateDistanceMeters, calculateDurationMs, countTrackPoints } from "./track-metrics";
@@ -74,9 +74,7 @@ export class GpxPreviewView extends TextFileView {
     const pointCount = countTrackPoints(tracks);
     const segmentCount = tracks.reduce((sum, track) => sum + track.segments.length, 0);
     const record = this.plugin.data.records[file.path];
-    const expectedImagePath = bannerImagePath(dateKey, settings);
-    const previewImagePath = record?.imagePath || expectedImagePath;
-    const bannerImage = this.app.vault.getAbstractFileByPath(previewImagePath);
+    const bannerImage = previewImageFile(this.app.vault, dateKey, settings, record?.imagePath);
     const hasBannerImage = bannerImage instanceof TFile;
 
     const header = root.createDiv({ cls: "gpx-preview-header" });
@@ -100,7 +98,7 @@ export class GpxPreviewView extends TextFileView {
     } else {
       const missing = root.createDiv({ cls: "gpx-preview-missing-banner" });
       missing.createEl("strong", { text: "还没有生成封面图片" });
-      missing.createEl("span", { text: "GPX 预览不会单独加载在线地图。生成一次封面后，这里会直接显示本地 PNG。" });
+      missing.createEl("span", { text: "GPX 预览不会单独加载在线地图。生成一次封面后，这里会复用本地桌面封面。" });
     }
 
     const metrics = root.createDiv({ cls: "gpx-preview-metrics" });

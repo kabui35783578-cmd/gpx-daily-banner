@@ -36,6 +36,15 @@ try {
     }]
   });
   await import(`${pathToFileURL(workflowOutfile).href}?run=${Date.now()}`);
+  const cleanupOutfile = join(tempDir, "daily-data-cleanup.test.mjs");
+  await build({
+    entryPoints: [fileURLToPath(new URL("../tests/daily-data-cleanup.test.ts", import.meta.url))],
+    bundle: true, platform: "node", format: "esm", target: "node20", outfile: cleanupOutfile, logLevel: "silent",
+    plugins: [{ name: "mock-obsidian", setup(build) {
+      build.onResolve({ filter: /^obsidian$/ }, () => ({ path: fileURLToPath(new URL("../tests/obsidian-mock.ts", import.meta.url)) }));
+    } }]
+  });
+  await import(`${pathToFileURL(cleanupOutfile).href}?run=${Date.now()}`);
 } finally {
   await rm(tempDir, { recursive: true, force: true });
 }

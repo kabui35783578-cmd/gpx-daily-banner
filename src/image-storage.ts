@@ -10,11 +10,28 @@ export const HERO_IMAGE_DIMENSIONS: Record<HeroImageVariant, { width: number; he
 };
 
 export function bannerImagePath(dateKey: string, settings: GpxDailyBannerSettings): string {
-  return joinPath(settings.bannerFolder, `${dateKey}-gpx-banner.png`);
+  // GPX previews share the desktop hero rather than storing a third image.
+  return heroImagePath(dateKey, settings, "desktop");
 }
 
 export function heroImagePath(dateKey: string, settings: GpxDailyBannerSettings, variant: HeroImageVariant): string {
-  return joinPath(settings.bannerFolder, `${dateKey}-gpx-hero-${variant}.png`);
+  return joinPath(settings.bannerFolder, `${dateKey}-gpx-hero-${variant}.webp`);
+}
+
+export function previewImageFile(vault: Vault, dateKey: string, settings: GpxDailyBannerSettings, recordedPath?: string): TFile | null {
+  const paths = [
+    bannerImagePath(dateKey, settings),
+    recordedPath,
+    joinPath(settings.bannerFolder, `${dateKey}-gpx-hero-desktop.png`),
+    joinPath(settings.bannerFolder, `${dateKey}-gpx-banner.webp`),
+    joinPath(settings.bannerFolder, `${dateKey}-gpx-banner.png`)
+  ];
+  for (const path of paths) {
+    if (!path) continue;
+    const file = vault.getAbstractFileByPath(path);
+    if (file instanceof TFile) return file;
+  }
+  return null;
 }
 
 export function heroImagePaths(dateKey: string, settings: GpxDailyBannerSettings): { desktop: string; mobile: string } {

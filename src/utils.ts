@@ -66,9 +66,10 @@ export function sanitizeFilePart(value: string): string {
 export async function canvasToArrayBuffer(canvas: HTMLCanvasElement): Promise<ArrayBuffer> {
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((result) => {
-      if (result) resolve(result);
+      if (result?.type === "image/webp") resolve(result);
+      else if (result) reject(new Error("当前设备无法导出 WebP 图片。"));
       else reject(new Error("无法从 Canvas 导出图片。"));
-    }, "image/png");
+    }, "image/webp", 0.92);
   });
   return await blob.arrayBuffer();
 }

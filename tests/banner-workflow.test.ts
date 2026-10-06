@@ -8,6 +8,8 @@ import { ProcessingQueue } from "../src/processing-queue";
 import { clearTileCache, loadTileImage } from "../src/tile-loader";
 import { renders, setOnRender } from "./render-mock";
 import type { PluginData } from "../src/types";
+import { bannerImagePath, previewImageFile } from "../src/image-storage";
+import { canvasToArrayBuffer } from "../src/utils";
 
 (globalThis as any).window = globalThis;
 (globalThis as any).innerWidth = 1200;
@@ -44,18 +46,20 @@ const manager = new BannerManager(vault as never, () => settings, () => data, as
 const rawPath = `${settings.dailyDataBridgeFolder}/${dailyDataRawFileName(dateKey, settings)}`;
 makeFile(rawPath, "1784887200,121,31\n1784887260,121.01,31.01");
 
-// First hero is published before rendering the second or the legacy preview.
+// First hero is published before rendering the second; no third image is stored.
 setOnRender(async (_input, dimensions) => {
   if (dimensions.imageWidth === 900) {
     assert.equal(writes.length, 1);
-    assert.ok(contents.get(`Daily Notes/${dateKey}.md`)!.includes("hero-desktop.png"));
+    assert.ok(contents.get(`Daily Notes/${dateKey}.md`)!.includes("hero-desktop.webp"));
   }
 });
 await manager.refreshDailyDataForDate(dateKey);
 setOnRender();
-assert.equal(writes.length, 3);
-assert.ok(writes[0].endsWith("hero-desktop.png"));
-assert.ok(writes[2].endsWith("gpx-banner.png"));
+assert.equal(writes.length, 2);
+assert.ok(writes[0].endsWith("hero-desktop.webp"));
+assert.ok(writes[1].endsWith("hero-mobile.webp"));
+assert.equal(data.dailyDataRecords[dateKey].imagePath, writes[0], "preview must reuse the desktop hero");
+assert.ok(!writes.some(path => path.endsWith("gpx-banner.png")), "no legacy third image");
 const renderCount = renders.length;
 await manager.refreshDailyDataForDate(dateKey);
 assert.equal(renders.length, renderCount, "unchanged daily source should not render");
@@ -84,7 +88,7 @@ await Promise.all([
   manager.processGpxFile(first, { skipStabilityCheck: true }),
   manager.processGpxFile(first, { skipStabilityCheck: true })
 ]);
-assert.equal(renders.filter((entry) => entry.startsWith("first:")).length, 3, "deduplicate imports");
+assert.equal(renders.filter((entry) => entry.startsWith("first:")).length, 2, "deduplicate imports");
 assert.equal(hasManualOverride(data, dateKey), true);
 const beforeAutomatic = renders.length;
 await manager.refreshDailyDataForDate(dateKey, { force: true });
@@ -126,7 +130,8 @@ assert.ok(renders.at(-1)!.startsWith("third:"));
 Platform.isMobile = true;
 const startWrites = writes.length;
 await manager.processGpxFile(makeFile("mobile.gpx", "mobile"), { skipStabilityCheck: true });
-assert.ok(writes[startWrites].endsWith("hero-mobile.png"));
+assert.ok(writes[startWrites].endsWith("hero-mobile.webp"));
+assert.ok(data.records["mobile.gpx"].imagePath.endsWith("hero-desktop.webp"), "mobile imports also reuse desktop for preview");
 Platform.isMobile = false;
 
 // Failed parsing and a missing automatic source cannot release a good manual selection.
@@ -177,4 +182,25 @@ await assert.rejects(queue.runForFile("bad", dateKey, async () => { throw new Er
 let ran = false;
 await queue.runForFile("good", dateKey, async () => { ran = true; });
 assert.equal(ran, true);
+
+// New previews prefer the shared WebP but still open old PNG-only records.
+const oldDate = "2026-06-20";
+const legacy = makeFile(`${settings.bannerFolder}/${oldDate}-gpx-banner.png`, "legacy");
+assert.equal(previewImageFile(vault as never, oldDate, settings, legacy.path), legacy);
+const migrated = makeFile(bannerImagePath(oldDate, settings), "webp");
+assert.equal(previewImageFile(vault as never, oldDate, settings, legacy.path), migrated);
+assert.equal(previewImageFile(vault as never, "1900-01-01", settings), null);
+
+// Reject a browser PNG fallback rather than saving PNG bytes under .webp.
+let exportType = "";
+let exportQuality = 0;
+const canvas = { toBlob(callback: BlobCallback, type: string, quality: number) {
+  exportType = type; exportQuality = quality;
+  callback(new Blob(["webp"], { type: "image/webp" }));
+} } as unknown as HTMLCanvasElement;
+assert.equal(new TextDecoder().decode(await canvasToArrayBuffer(canvas)), "webp");
+assert.equal(exportType, "image/webp");
+assert.equal(exportQuality, 0.92);
+await assert.rejects(canvasToArrayBuffer({ toBlob(callback: BlobCallback) { callback(new Blob(["png"], { type: "image/png" })); } } as HTMLCanvasElement));
+await assert.rejects(canvasToArrayBuffer({ toBlob(callback: BlobCallback) { callback(null); } } as HTMLCanvasElement));
 console.log("banner workflow, priority, progressive rendering, mobile, tile cache and queue checks passed");

@@ -100,7 +100,7 @@ async function readExternalText(path: string, settings: GpxDailyBannerSettings):
   }
 }
 
-async function fingerprintText(text: string): Promise<string> {
+export async function fingerprintText(text: string): Promise<string> {
   const encoded = new TextEncoder().encode(text);
   if (globalThis.crypto?.subtle) {
     const digest = await globalThis.crypto.subtle.digest("SHA-256", encoded);

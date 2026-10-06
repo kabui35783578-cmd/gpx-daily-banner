@@ -47,6 +47,7 @@ export interface DailyDataRecord {
   imagePath: string;
   notePath: string;
   status: ProcessStatus;
+  sourceDeleted?: boolean;
   error?: string;
 }
 
@@ -64,6 +65,7 @@ export interface GpxDailyBannerSettings {
   dailyDataSourceMode: DailyDataSourceMode;
   dailyDataGapMinutes: number;
   dailyDataStartupDelaySeconds: number;
+  autoDeleteDailyDataAfterSuccess: boolean;
   dailyNoteFolder: string;
   dailyNoteDateFormat: string;
   dailyNoteExtension: string;

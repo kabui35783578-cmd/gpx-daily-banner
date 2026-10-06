@@ -394,6 +394,8 @@ export default class GpxDailyBannerPlugin extends Plugin {
   }
 
   private async refreshTodayDailyDataOnStartup(): Promise<void> {
+    try { await this.manager.cleanupProcessedDailyData(); }
+    catch (error) { debug(this.settings, "startup source cleanup failed", error); }
     const retryDelays = [0, 1500, 3000, 5000];
     for (const retryDelay of retryDelays) {
       if (retryDelay > 0) await delay(retryDelay);

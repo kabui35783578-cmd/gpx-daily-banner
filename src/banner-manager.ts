@@ -2,6 +2,7 @@ import { Notice, Platform, TFile, Vault } from "obsidian";
 import { hasManualOverride, latestManualRecord } from "./banner-priority";
 import { parseDailyData } from "./daily-data-parser";
 import { DailyDataSource, readDailyDataForDate } from "./daily-data-source";
+import { cleanupDailyDataSource, storedHeroImagesReady } from "./daily-data-cleanup";
 import { parseGpx, getMetadataTime } from "./gpx-parser";
 import { renderMapBanner } from "./map-renderer";
 import { renderOfflineBanner } from "./offline-renderer";
@@ -58,6 +59,30 @@ export class BannerManager {
     private getData: () => PluginData,
     private saveData: () => Promise<void>
   ) {}
+
+  async cleanupProcessedDailyData(): Promise<number> {
+    let removed = 0;
+    for (const record of Object.values(this.getData().dailyDataRecords)) {
+      if (this.disposed || !this.getSettings().autoDeleteDailyDataAfterSuccess) break;
+      await this.queue.runForFile(`cleanup:${record.dateKey}`, record.dateKey, async () => {
+        removed += await this.cleanupDailyDataRecord(record.dateKey);
+      });
+    }
+    return removed;
+  }
+
+  private async cleanupDailyDataRecord(dateKey: string): Promise<number> {
+    const record = this.getData().dailyDataRecords[dateKey];
+    if (!record) return 0;
+    try {
+      return await cleanupDailyDataSource(this.vault, this.getSettings(), record, this.saveData, () =>
+        !this.disposed && this.getSettings().autoDeleteDailyDataAfterSuccess
+        && this.getData().dailyDataRecords[dateKey] === record && !this.hasProcessedGpxForDate(dateKey));
+    } catch (error) {
+      debug(this.getSettings(), "daily source cleanup failed", dateKey, error);
+      return 0;
+    }
+  }
 
   async scanInbox(): Promise<void> {
     const settings = this.getSettings();
@@ -173,6 +198,11 @@ export class BannerManager {
     const result = await readDailyDataForDate(this.vault, settings, dateKey);
     const source = result.source;
     if (!source) {
+      const previous = this.getData().dailyDataRecords[dateKey];
+      if (previous?.status === "processed" && previous.sourceDeleted && await storedHeroImagesReady(this.vault, previous)) {
+        if (options.notifyMissing || options.force) new Notice(`${dateKey} 的原始轨迹已清理，现有封面已保留。重新生成请再次导入原始轨迹。`);
+        return true;
+      }
       if (options.notifyMissing) {
         new Notice(`没有找到 ${dateKey} 的一生足迹 _raw 文件。已尝试：${result.attemptedPaths.join("、") || "未设置目录"}`);
       }
@@ -194,6 +224,7 @@ export class BannerManager {
     const needsHeroMigration = previous?.status === "processed" && await this.noteNeedsHeroImages(dateKey);
     if (!options.force && previous?.fingerprint === source.fingerprint && previous.status === "processed" && !needsHeroMigration) {
       debug(settings, "daily data unchanged", dateKey, source.path);
+      await this.queue.runForFile(`cleanup:${dateKey}`, dateKey, async () => { await this.cleanupDailyDataRecord(dateKey); });
       return true;
     }
 
@@ -247,6 +278,11 @@ export class BannerManager {
     const dailySource = await readDailyDataForDate(this.vault, this.getSettings(), dateKey);
     if (dailySource.source) {
       await this.refreshDailyDataForDate(dateKey, { force: true, notifyMissing: true });
+      return;
+    }
+    const dailyRecord = this.getData().dailyDataRecords[dateKey];
+    if (dailyRecord?.status === "processed" && dailyRecord.sourceDeleted) {
+      new Notice(`${dateKey} 的原始轨迹已清理，重新生成请再次导入原始轨迹。`);
       return;
     }
 
@@ -375,10 +411,6 @@ export class BannerManager {
         }
       }
       await upsertBannerBlock(this.vault, note, heroPaths);
-      const bannerResult = await this.renderImage(input, { ...settings, onlineMapEnabled: settings.onlineMapEnabled && !usedOfflineFallback });
-      if (this.disposed) return;
-      await saveBannerImage(this.vault, imagePath, bannerResult.data);
-      usedOfflineFallback = usedOfflineFallback || bannerResult.usedOfflineFallback;
     } catch (error) {
       if (this.disposed) return;
       await this.markJobFailed(job, note.path, error);
@@ -406,7 +438,7 @@ export class BannerManager {
     let sourceDeleted = false;
     // A manually imported GPX can live in the Vault's attachments folder (or any
     // other Vault folder), so cleanup must not depend on the scan-only Inbox path.
-    // DailyData sources never enter this branch and are therefore never deleted.
+    // DailyData bridge cleanup has its own setting and validates persisted images.
     if (job.kind === "gpx" && job.file) {
       if (settings.autoDeleteAfterSuccess) {
         try {
@@ -454,6 +486,7 @@ export class BannerManager {
         notePath: note.path,
         status: "processed"
       });
+      await this.cleanupDailyDataRecord(job.dateKey);
     }
     if (job.kind === "daily-data") {
       new Notice(`${job.dateKey} 的一生足迹轨迹已${job.force ? "重新" : ""}生成。`);
